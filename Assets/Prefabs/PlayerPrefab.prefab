@@ -12,10 +12,11 @@ GameObject:
   - component: {fileID: 7709853839862198064}
   - component: {fileID: 1166944180983234517}
   - component: {fileID: 7020051071903670318}
+  - component: {fileID: 3599475201163701001}
   - component: {fileID: 4900024290872578271}
   m_Layer: 0
   m_Name: PlayerPrefab
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -95,7 +96,32 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 4
-  rotationSpeed: 720
+  sprintSpeed: 7
+  rotationSpeed: 1080
+  speedChangeRate: 12
+  jumpHeight: 1.2
+  gravity: -15
+  jumpTimeout: 0.3
+  fallTimeout: 0.15
+--- !u!114 &3599475201163701001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8184112481968693095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 143b9c80820546c59dd1ec4f785b8921, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mainCameraPrefab: {fileID: 8944336655422409498, guid: f6d148d888ffbf54b9afe9936dfaec1f, type: 3}
+  virtualCameraPrefab: {fileID: 2070925441746177671, guid: a1a802ecaf6775746bb2a929fb554ad8, type: 3}
+  lookSensitivity: 1.2
+  topClamp: 70
+  bottomClamp: -30
+  initialPitch: 12
+  invertY: 0
 --- !u!114 &4900024290872578271
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -140,7 +166,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1114260476483171701, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1114260476483171701, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
       propertyPath: m_LocalPosition.z

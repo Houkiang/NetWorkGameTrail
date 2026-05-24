@@ -242,7 +242,11 @@ public class NetworkStartupPanel : MonoBehaviour
         if (!IsListening())
         {
             statusMessage = $"Network start requested for {selectedMode}. Check the Console if it does not connect.";
+            return;
         }
+
+        panelVisible = false;
+        EnsureCursorState(false);
     }
 
     private static void EnsureCursorState(bool shouldShowPanel)
