@@ -29,6 +29,11 @@ UserSettings/
 # Unity autogen and package cache
 Assets/AssetStoreTools*
 
+# Local detached backups and analysis artifacts
+_DetachedAssets/
+_AssetArchive/
+unused_fbx_report.json
+
 # Local machine artifacts accidentally created in this workspace
 C
 F
