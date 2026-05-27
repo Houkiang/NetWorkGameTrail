@@ -18,7 +18,13 @@ public class PlayerController : NetworkBehaviour
     private float rotationSpeed = 720f;
 
     [SerializeField]
-    private float speedChangeRate = 12f;
+    private float acceleration = 24f;
+
+    [SerializeField]
+    private float deceleration = 30f;
+
+    [SerializeField]
+    private float directionChangeRate = 1440f;
 
     [SerializeField]
     private float jumpHeight = 1.2f;
@@ -187,18 +193,40 @@ public class PlayerController : NetworkBehaviour
             verticalVelocity += gravity * deltaTime;
         }
 
-        Vector3 desiredPlanarVelocity = Vector3.zero;
-        if (serverMoveInput.sqrMagnitude > 0.0001f)
+        float targetSpeed = 0f;
+        bool hasMoveInput = serverMoveInput.sqrMagnitude > 0.0001f;
+        if (hasMoveInput)
         {
-            float targetSpeed = serverSprintHeld ? sprintSpeed : moveSpeed;
-            desiredPlanarVelocity = serverMoveInput.normalized * targetSpeed;
+            targetSpeed = serverSprintHeld ? sprintSpeed : moveSpeed;
         }
 
-        serverPlanarVelocity = Vector3.MoveTowards(serverPlanarVelocity, desiredPlanarVelocity, speedChangeRate * deltaTime);
+        float currentSpeed = serverPlanarVelocity.magnitude;
+        float speedRate = targetSpeed > currentSpeed ? acceleration : deceleration;
+        currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, speedRate * deltaTime);
+
+        if (hasMoveInput)
+        {
+            Vector3 desiredDirection = serverMoveInput.normalized;
+            Vector3 currentDirection = serverPlanarVelocity.sqrMagnitude > 0.0001f
+                ? serverPlanarVelocity.normalized
+                : desiredDirection;
+
+            float maxRadiansDelta = directionChangeRate * Mathf.Deg2Rad * deltaTime;
+            Vector3 rotatedDirection = Vector3.RotateTowards(currentDirection, desiredDirection, maxRadiansDelta, 0f);
+            serverPlanarVelocity = rotatedDirection.normalized * currentSpeed;
+        }
+        else
+        {
+            Vector3 currentDirection = serverPlanarVelocity.sqrMagnitude > 0.0001f
+                ? serverPlanarVelocity.normalized
+                : transform.forward;
+            serverPlanarVelocity = currentDirection * currentSpeed;
+        }
 
         if (serverPlanarVelocity.sqrMagnitude > 0.0001f)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(serverPlanarVelocity.normalized, Vector3.up);
+            Vector3 facingDirection = hasMoveInput ? serverMoveInput.normalized : serverPlanarVelocity.normalized;
+            Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * deltaTime);
         }
 
