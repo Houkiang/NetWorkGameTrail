@@ -9,9 +9,8 @@ using UnityEngine.InputSystem;
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(NetworkObject))]
-public class PlayerController : NetworkBehaviour
+public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 {
-    private static readonly Rect DebugWindowRect = new Rect(20f, 260f, 420f, 360f);
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
@@ -161,7 +160,6 @@ public class PlayerController : NetworkBehaviour
     private Transform leftFootBone;
     private Transform rightFootBone;
     private Vector3 initialVisualRootLocalPosition;
-    private Vector2 debugScrollPosition;
     private Vector3 ownerRenderPositionVelocity;
     private Vector3 ownerVisualCorrectionOffset;
     private Vector3 sampledMoveInput;
@@ -176,11 +174,9 @@ public class PlayerController : NetworkBehaviour
     private float lastReconciliationPositionError;
     private float lastReconciliationRotationError;
     private uint nextInputSequence;
-    private uint lastReceivedAuthoritativeSequence;
     private uint latestQueuedServerSequence;
     private uint jumpRequestSequence;
     private int jumpResendTicksRemaining;
-    private bool debugOverlayVisible;
     private bool jumpAwaitingServerConsume;
     private bool jumpQueued;
     private bool sampledSprintHeld;
@@ -193,6 +189,12 @@ public class PlayerController : NetworkBehaviour
     private float cachedStepOffset;
 
     public float MoveSpeed => moveSpeed;
+
+    public int DebugSortOrder => 100;
+
+    public string DebugSectionTitle => "Player";
+
+    public bool ShouldDisplayInDebugOverlay => Application.isPlaying && IsOwner;
 
     private bool UsesPrediction => IsOwner && !IsServer;
 
@@ -229,7 +231,16 @@ public class PlayerController : NetworkBehaviour
         }
 
         CacheFootBones();
-        debugOverlayVisible = showNetworkDebugOverlay;
+    }
+
+    private void OnEnable()
+    {
+        DebugPanelRegistry.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        DebugPanelRegistry.Unregister(this);
     }
 
     public override void OnNetworkSpawn()
@@ -285,7 +296,6 @@ public class PlayerController : NetworkBehaviour
 
         if (IsOwner)
         {
-            HandleDebugOverlayToggle();
             SampleOwnerInput();
         }
 
@@ -317,6 +327,14 @@ public class PlayerController : NetworkBehaviour
 
     private void SampleOwnerInput()
     {
+        if (RuntimeUIState.BlocksGameplayInput)
+        {
+            sampledMoveInput = Vector3.zero;
+            sampledSprintHeld = false;
+            jumpQueued = false;
+            return;
+        }
+
         Vector2 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
         input = Vector2.ClampMagnitude(input, 1f);
         sampledMoveInput = ResolveMoveDirection(input);
@@ -922,7 +940,6 @@ public class PlayerController : NetworkBehaviour
     private void ApplyOwnerReconciliation(MotorState newState)
     {
         Vector3 previousRenderTarget = GetPredictedRenderPosition();
-        lastReceivedAuthoritativeSequence = newState.LastProcessedInputSequence;
         lastReconciliationPositionError = Vector3.Distance(predictedState.Position, newState.Position);
         lastReconciliationRotationError = Mathf.Abs(Mathf.DeltaAngle(predictedState.Yaw, newState.Yaw));
 
@@ -1118,39 +1135,22 @@ public class PlayerController : NetworkBehaviour
         return new Vector3(Mathf.Sin(radians), 0f, Mathf.Cos(radians));
     }
 
-    private void HandleDebugOverlayToggle()
+    public void AppendDebugLines(List<string> lines)
     {
-        if (Input.GetKeyDown(debugOverlayToggleKey))
-        {
-            debugOverlayVisible = !debugOverlayVisible;
-        }
-    }
-
-    private void OnGUI()
-    {
-        if (!Application.isPlaying || !IsOwner || !debugOverlayVisible)
-        {
-            return;
-        }
-
-        GUILayout.BeginArea(DebugWindowRect, "Network Movement Debug", GUI.skin.window);
-        debugScrollPosition = GUILayout.BeginScrollView(debugScrollPosition, false, true);
-        GUILayout.Label($"Role: {GetLocalRoleLabel()}");
-        GUILayout.Label($"TickRate: {GetCurrentTickRate()}");
-        GUILayout.Label($"RTT: {GetCurrentRttMs()} ms");
-        GUILayout.Label($"Pos: {FormatVector3(transform.position)}");
-        GUILayout.Label($"Predicted Pos: {FormatVector3(predictedState.Position)}");
-        GUILayout.Label($"Authoritative Pos: {FormatVector3(authoritativeState.Value.Position)}");
-        GUILayout.Label($"Planar Speed: {GetAnimationSpeedSource():F2}");
-        GUILayout.Label($"Pending Inputs: {pendingInputs.Count}");
-        GUILayout.Label($"Reconcile Error: pos {lastReconciliationPositionError:F3} | rot {lastReconciliationRotationError:F1}");
-        GUILayout.Label($"Grounded: {GetAnimationState().Grounded}");
-        GUILayout.Label($"Jump/FreeFall: {GetAnimationState().Jump} / {GetAnimationState().FreeFall}");
-        GUILayout.Label($"Ground Gap: {SampleGroundGap():F3}");
-        GUILayout.Label($"Visual Root Y: {GetVisualRootLocalYOffset():F3}");
-        GUILayout.Label($"Lowest Foot Gap: {SampleLowestFootGap():F3}");
-        GUILayout.EndScrollView();
-        GUILayout.EndArea();
+        lines.Add($"Role: {GetLocalRoleLabel()}");
+        lines.Add($"TickRate: {GetCurrentTickRate()}");
+        lines.Add($"RTT: {GetCurrentRttMs()} ms");
+        lines.Add($"Pos: {FormatVector3(transform.position)}");
+        lines.Add($"Predicted Pos: {FormatVector3(predictedState.Position)}");
+        lines.Add($"Authoritative Pos: {FormatVector3(authoritativeState.Value.Position)}");
+        lines.Add($"Planar Speed: {GetAnimationSpeedSource():F2}");
+        lines.Add($"Pending Inputs: {pendingInputs.Count}");
+        lines.Add($"Reconcile Error: pos {lastReconciliationPositionError:F3} | rot {lastReconciliationRotationError:F1}");
+        lines.Add($"Grounded: {GetAnimationState().Grounded}");
+        lines.Add($"Jump / FreeFall: {GetAnimationState().Jump} / {GetAnimationState().FreeFall}");
+        lines.Add($"Ground Gap: {SampleGroundGap():F3}");
+        lines.Add($"Visual Root Y: {GetVisualRootLocalYOffset():F3}");
+        lines.Add($"Lowest Foot Gap: {SampleLowestFootGap():F3}");
     }
 
     private float SampleGroundGap()

@@ -7,6 +7,9 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkBootstrap))]
 public class NetworkStartupPanel : MonoBehaviour
 {
+    [SerializeField]
+    private bool legacyPanelEnabled;
+
     private enum StartupChoice
     {
         Host,
@@ -50,6 +53,12 @@ public class NetworkStartupPanel : MonoBehaviour
 
     private void Awake()
     {
+        if (!legacyPanelEnabled && GetComponent<NetworkSessionService>() != null)
+        {
+            enabled = false;
+            return;
+        }
+
         bootstrap = GetComponent<NetworkBootstrap>();
         selectedMode = defaultMode;
         panelVisible = showOnStart;

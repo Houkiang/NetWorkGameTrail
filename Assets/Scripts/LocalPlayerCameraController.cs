@@ -55,7 +55,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (!IsOwner || cameraTarget == null || Cursor.lockState != CursorLockMode.Locked)
+        if (!IsOwner || cameraTarget == null || RuntimeUIState.BlocksGameplayInput || Cursor.lockState != CursorLockMode.Locked)
         {
             return;
         }

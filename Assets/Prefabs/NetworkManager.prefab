@@ -15,6 +15,9 @@ GameObject:
   - component: {fileID: 7522104315017724802}
   - component: {fileID: 8693992820343228056}
   - component: {fileID: 8123456789012345678}
+  - component: {fileID: 4112233445566778899}
+  - component: {fileID: 4223344556677889900}
+  - component: {fileID: 4334455667788990011}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -155,14 +158,100 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1053225375064539316}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f9b7f4d2f0b49748db2938dbcd4f58a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  legacyPanelEnabled: 0
   showDuringPlay: 1
   defaultMode: 0
   clientAddress: 127.0.0.1
   port: 7777
   listenAddress: 0.0.0.0
   allowServerMode: 1
+  toggleKey: 282
+  showOnStart: 1
+--- !u!114 &4112233445566778899
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1053225375064539316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1dcb4bd8b4748d2b0ce4496c7660cd7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  clientAddress: 127.0.0.1
+  port: 7777
+  listenAddress: 0.0.0.0
+  allowServerMode: 1
+--- !u!114 &4223344556677889900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1053225375064539316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25ec110c3d764f34a283ea05ee71d83c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  toggleKey: 27
+  showOnStartWhenOffline: 1
+  gameplayHelpText: 'Gameplay Help
+
+
+    WASD: Move
+
+    Space: Jump
+
+    LeftShift:
+    Sprint
+
+    Esc: Open settings
+
+    F1: Toggle debug overlay
+
+
+    Host: local
+    player plus host
+
+    Server: visual server without local player
+
+    Client:
+    connect to another host'
+  windowSize: {x: 1600, y: 900}
+  outerPadding: 30
+  bodySpacing: 30
+  sidebarWidth: 50
+  sidebarButtonHeight: 100
+  actionButtonHeight: 100
+  closeButtonHeight: 100
+  titleFontSize: 60
+  pageTitleFontSize: 40
+  bodyFontSize: 30
+  buttonFontSize: 40
+--- !u!114 &4334455667788990011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1053225375064539316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a78e0629434d4f538b66a4fe30cc9a28, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  toggleKey: 282
+  visibleOnStart: 0
+  panelWidth: 800
+  panelMargin: 16
+  titleFontSize: 60
+  subtitleFontSize: 20
+  sectionTitleFontSize: 40
+  bodyFontSize: 30

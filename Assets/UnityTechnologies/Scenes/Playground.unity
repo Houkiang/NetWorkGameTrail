@@ -835,10 +835,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: NetworkManager
       objectReference: {fileID: 0}
-    - target: {fileID: 1053225375064539316, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 4210905628554470370, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0.13
@@ -878,6 +874,29 @@ PrefabInstance:
     - target: {fileID: 4210905628554470370, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: gameplayHelpText
+      value: "WASD: \u79FB\u52A8\nSpace: \u8DF3\u8DC3\nLeftShift: \u75BE\u8DD1\nEsc:
+        \u8BBE\u7F6E\u754C\u9762\nF1: Debug\u4FE1\u606F\u5C55\u793A\n\nHost: \u672C\u673A\u65E2\u662F\u670D\u52A1\u5668\u53C8\u662F\u73A9\u5BB6\nServer:
+        \u672C\u673A\u4EC5\u521B\u5EFA\u53EF\u89C6\u5316\u670D\u52A1\u5668\nClient:
+        \u4F5C\u4E3A\u73A9\u5BB6\u8FDE\u63A5\u5230\u5176\u4ED6\u4E3B\u673A\u6216\u670D\u52A1\u5668\n\u521B\u5EFA\u623F\u95F4\u65F6\u5FC5\u987B\u5904\u4E8E\u540C\u4E00\u4E2A\u5C40\u57DF\u7F51\u4E0B\uFF0C\u540C\u65F6\u7531\u5BA2\u6237\u7AEF\u8F93\u5165\u670D\u52A1\u7AEF\u7684IP\u548CPort\u4EE5\u8FDE\u63A5\uFF1B\u82E5\u4F7F\u7528Localhost\u68C0\u6D4B\u8054\u673A\uFF0CIP\u5E94\u5F53\u8F93\u5165127.0.0.1\n\n\u5F00\u53D1\u8005\uFF1A\u4FAF\u67EF\u826F\u3001\u5374\u663E\u965F\u3001\u5468\u7ADE\u7214\uFF0C\u6240\u6709\u7D20\u6750\u5747\u6765\u81EA\u514D\u8D39\u5F00\u6E90\u5E73\u53F0"
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: hostShareHintText
+      value: "\u5411\u540C\u4E00\u5C40\u57DF\u7F51\u4E0B\u7684\u5176\u4ED6\u5BA2\u6237\u7AEF\u73A9\u5BB6\u5206\u4EAB\u4F60\u7684IP\u548CPort\u4EE5\u52A0\u5165\u6E38\u620F\uFF0C\u9664\u975E\u7531\u591A\u4E2A\u7F51\u5361\u6216\u865A\u62DF\u673A\u9700\u8981\u6307\u5B9A\u7AEF\u53E3\uFF0C\u5426\u5219ListenAddress\u4FDD\u63010.0.0.0"
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: clientDescriptionText
+      value: "\u8F93\u5165\u670D\u52A1\u7AEF\u7684IP\u548CPort\uFF0C\u82E5\u5728\u540C\u4E00\u53F0\u865A\u62DF\u673A\u4E0A\u8FD0\u884C\uFF0CIP\u8F93\u5165127.0.0.1"
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: serverDescriptionText
+      value: "\u4EC5\u521B\u5EFA\u53EF\u89C6\u5316\u7A97\u53E3\u548CDebugUI\uFF0C\u4E0D\u521B\u5EFA\u73A9\u5BB6"
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: statusDescriptionText
+      value: "\u67E5\u770B\u5F53\u524DIP\u548C\u8FDE\u63A5\u72B6\u6001\u6216\u65AD\u5F00\u8FDE\u63A5"
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
