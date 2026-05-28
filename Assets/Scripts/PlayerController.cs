@@ -1,47 +1,54 @@
 using System;
 using System.Collections.Generic;
+using StarterAssets;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using StarterAssets;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(NetworkObject))]
 public class PlayerController : NetworkBehaviour
 {
-    private static readonly Rect DebugWindowRect = new Rect(20f, 260f, 400f, 340f);
-    private const float TerminalVelocity = -53f;
-    private const float PredictionErrorTeleportThreshold = 1.5f;
+    private static readonly Rect DebugWindowRect = new Rect(20f, 260f, 420f, 360f);
+    private static readonly int SpeedHash = Animator.StringToHash("Speed");
+    private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
+    private static readonly int GroundedHash = Animator.StringToHash("Grounded");
+    private static readonly int JumpHash = Animator.StringToHash("Jump");
+    private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
 
-    private struct PredictedInput : INetworkSerializable
+    private const float TerminalVelocity = -53f;
+    private const float GroundStickVelocity = 0f;
+    private const float MaxCorrectionDistance = 3f;
+
+    private struct InputCommand : INetworkSerializable
     {
         public uint Sequence;
         public Vector3 MoveDirection;
-        public bool JumpPressed;
         public bool SprintHeld;
-        public float DeltaTime;
+        public bool JumpPressed;
 
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref Sequence);
             serializer.SerializeValue(ref MoveDirection);
-            serializer.SerializeValue(ref JumpPressed);
             serializer.SerializeValue(ref SprintHeld);
-            serializer.SerializeValue(ref DeltaTime);
+            serializer.SerializeValue(ref JumpPressed);
         }
     }
 
-    private struct ReconciliationState : INetworkSerializable, IEquatable<ReconciliationState>
+    private struct MotorState : INetworkSerializable, IEquatable<MotorState>
     {
         public uint LastProcessedInputSequence;
+        public uint LastConsumedJumpSequence;
         public Vector3 Position;
-        public Quaternion Rotation;
+        public float Yaw;
         public Vector3 PlanarVelocity;
         public float VerticalVelocity;
         public float JumpTimeoutDelta;
         public float FallTimeoutDelta;
+        public float GroundedGraceDelta;
         public bool Grounded;
         public bool Jump;
         public bool FreeFall;
@@ -49,26 +56,30 @@ public class PlayerController : NetworkBehaviour
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref LastProcessedInputSequence);
+            serializer.SerializeValue(ref LastConsumedJumpSequence);
             serializer.SerializeValue(ref Position);
-            serializer.SerializeValue(ref Rotation);
+            serializer.SerializeValue(ref Yaw);
             serializer.SerializeValue(ref PlanarVelocity);
             serializer.SerializeValue(ref VerticalVelocity);
             serializer.SerializeValue(ref JumpTimeoutDelta);
             serializer.SerializeValue(ref FallTimeoutDelta);
+            serializer.SerializeValue(ref GroundedGraceDelta);
             serializer.SerializeValue(ref Grounded);
             serializer.SerializeValue(ref Jump);
             serializer.SerializeValue(ref FreeFall);
         }
 
-        public bool Equals(ReconciliationState other)
+        public bool Equals(MotorState other)
         {
             return LastProcessedInputSequence == other.LastProcessedInputSequence
+                && LastConsumedJumpSequence == other.LastConsumedJumpSequence
                 && Position == other.Position
-                && Rotation == other.Rotation
+                && Mathf.Approximately(Yaw, other.Yaw)
                 && PlanarVelocity == other.PlanarVelocity
                 && Mathf.Approximately(VerticalVelocity, other.VerticalVelocity)
                 && Mathf.Approximately(JumpTimeoutDelta, other.JumpTimeoutDelta)
                 && Mathf.Approximately(FallTimeoutDelta, other.FallTimeoutDelta)
+                && Mathf.Approximately(GroundedGraceDelta, other.GroundedGraceDelta)
                 && Grounded == other.Grounded
                 && Jump == other.Jump
                 && FreeFall == other.FreeFall;
@@ -76,13 +87,13 @@ public class PlayerController : NetworkBehaviour
     }
 
     [SerializeField]
-    private float moveSpeed = 4f;
+    private float moveSpeed = 5f;
 
     [SerializeField]
-    private float sprintSpeed = 6f;
+    private float sprintSpeed = 10f;
 
     [SerializeField]
-    private float rotationSpeed = 720f;
+    private float rotationSpeed = 1080f;
 
     [SerializeField]
     private float acceleration = 24f;
@@ -94,25 +105,54 @@ public class PlayerController : NetworkBehaviour
     private float directionChangeRate = 1440f;
 
     [SerializeField]
-    private float motionSpeedMultiplier = 1f;
+    private float motionSpeedMultiplier = 0.8f;
 
     [SerializeField]
-    private float jumpHeight = 1.2f;
+    private float jumpHeight = 2f;
 
     [SerializeField]
-    private float gravity = -15f;
+    private float gravity = -24f;
 
     [SerializeField]
-    private float jumpTimeout = 0.3f;
+    private float jumpTimeout = 0.2f;
 
     [SerializeField]
-    private float fallTimeout = 0.15f;
+    private float fallTimeout = 0.12f;
+
+    [SerializeField]
+    private float groundedGraceTime = 0.05f;
+
+    [SerializeField]
+    private float groundProbeDistance = 0.3f;
+
+    [SerializeField]
+    private float groundSnapDistance = 0.2f;
+
+    [SerializeField]
+    private float collisionSkin = 0.02f;
+
+    [SerializeField]
+    private float remotePositionLerp = 18f;
+
+    [SerializeField]
+    private float remoteRotationLerp = 18f;
+
+    [SerializeField]
+    private LayerMask collisionLayers = Physics.DefaultRaycastLayers;
 
     [SerializeField]
     private bool showNetworkDebugOverlay;
 
     [SerializeField]
     private KeyCode debugOverlayToggleKey = KeyCode.F3;
+
+    private readonly List<InputCommand> pendingInputs = new List<InputCommand>();
+    private readonly Queue<InputCommand> receivedInputs = new Queue<InputCommand>();
+    private readonly Collider[] overlapResults = new Collider[16];
+    private readonly NetworkVariable<MotorState> authoritativeState = new NetworkVariable<MotorState>(
+        new MotorState(),
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
 
     private CharacterController characterController;
     private Animator characterAnimator;
@@ -121,90 +161,65 @@ public class PlayerController : NetworkBehaviour
     private Transform leftFootBone;
     private Transform rightFootBone;
     private Vector3 initialVisualRootLocalPosition;
-    private Vector3 sampledMoveInput;
-    private PredictedInput lastServerInput;
-    private Vector3 serverMoveInput;
-    private Vector3 serverPlanarVelocity;
-    private readonly List<PredictedInput> pendingInputs = new List<PredictedInput>();
-    private readonly Queue<PredictedInput> serverInputQueue = new Queue<PredictedInput>();
-    private float visualSpeed;
-    private float verticalVelocity;
-    private float jumpTimeoutDelta;
-    private float fallTimeoutDelta;
-    private float ownerSimulationAccumulator;
-    private float serverSimulationAccumulator;
     private Vector2 debugScrollPosition;
+    private Vector3 ownerRenderPositionVelocity;
+    private Vector3 ownerVisualCorrectionOffset;
+    private Vector3 sampledMoveInput;
+    private Vector3 remoteRenderPositionVelocity;
+    private InputCommand latestServerInput;
+    private MotorState predictedState;
+    private MotorState serverState;
+    private MotorState remoteVisualState;
+    private float localTickAccumulator;
+    private float serverTickAccumulator;
+    private float visualSpeed;
     private float lastReconciliationPositionError;
     private float lastReconciliationRotationError;
     private uint nextInputSequence;
-    private uint lastAppliedReconciliationSequence;
-    private uint lastProcessedServerInputSequence;
+    private uint lastReceivedAuthoritativeSequence;
+    private uint latestQueuedServerSequence;
+    private uint jumpRequestSequence;
+    private int jumpResendTicksRemaining;
     private bool debugOverlayVisible;
-    private bool localGroundedState = true;
-    private bool localJumpState;
-    private bool localFreeFallState;
-    private bool sampledJumpPressed;
+    private bool jumpAwaitingServerConsume;
+    private bool jumpQueued;
     private bool sampledSprintHeld;
-    private bool serverSprintHeld;
-    private bool serverJumpRequested;
-
-    private readonly NetworkVariable<bool> networkGrounded = new NetworkVariable<bool>(
-        true,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<bool> networkJump = new NetworkVariable<bool>(
-        false,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<bool> networkFreeFall = new NetworkVariable<bool>(
-        false,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> networkPlanarSpeed = new NetworkVariable<float>(
-        0f,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> networkVerticalSpeed = new NetworkVariable<float>(
-        0f,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> networkGroundGap = new NetworkVariable<float>(
-        0f,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> networkVisualRootLocalY = new NetworkVariable<float>(
-        0f,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<float> networkLowestFootGap = new NetworkVariable<float>(
-        0f,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server);
-
-    private readonly NetworkVariable<ReconciliationState> authoritativeState = new NetworkVariable<ReconciliationState>(
-        new ReconciliationState(),
-        NetworkVariableReadPermission.Owner,
-        NetworkVariableWritePermission.Server);
-
-    private static readonly int SpeedHash = Animator.StringToHash("Speed");
-    private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
-    private static readonly int GroundedHash = Animator.StringToHash("Grounded");
-    private static readonly int JumpHash = Animator.StringToHash("Jump");
-    private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
+    private CapsuleCollider penetrationProbe;
+    private GameObject penetrationProbeObject;
+    private float cachedControllerRadius;
+    private float cachedControllerHeight;
+    private Vector3 cachedControllerCenter;
+    private float cachedSlopeLimit;
+    private float cachedStepOffset;
 
     public float MoveSpeed => moveSpeed;
-    private bool UsesPredictedMovement => IsOwner && !IsServer;
+
+    private bool UsesPrediction => IsOwner && !IsServer;
+
+    private float TickInterval
+    {
+        get
+        {
+            int tickRate = GetCurrentTickRate();
+            return tickRate > 0 ? 1f / tickRate : 1f / 60f;
+        }
+    }
+
+    private float CollisionRadius => Mathf.Max(0.05f, cachedControllerRadius - collisionSkin);
+
+    private float CollisionHeight => Mathf.Max(cachedControllerHeight, CollisionRadius * 2f + 0.01f);
+
+    private Vector3 CapsuleCenter => cachedControllerCenter;
+
+    private float SlopeLimitDegrees => cachedSlopeLimit;
+
+    private float StepOffsetHeight => cachedStepOffset;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        CacheControllerGeometry();
+        EnsurePenetrationProbe();
         characterAnimator = GetComponentInChildren<Animator>(true);
         networkTransform = GetComponent<NetworkTransform>();
         visualRoot = transform.childCount > 0 ? transform.GetChild(0) : null;
@@ -214,350 +229,729 @@ public class PlayerController : NetworkBehaviour
         }
 
         CacheFootBones();
-        jumpTimeoutDelta = jumpTimeout;
-        fallTimeoutDelta = fallTimeout;
         debugOverlayVisible = showNetworkDebugOverlay;
-    }
-
-    private void Update()
-    {
-        float deltaTime = Time.deltaTime;
-
-        if (IsOwner)
-        {
-            HandleDebugOverlayToggle();
-            ReadLocalInput();
-
-            if (IsServer)
-            {
-                serverMoveInput = sampledMoveInput;
-                serverSprintHeld = sampledSprintHeld;
-                serverJumpRequested |= sampledJumpPressed;
-                sampledJumpPressed = false;
-                ApplyMovementStep(deltaTime, true);
-            }
-            else if (UsesPredictedMovement)
-            {
-                ownerSimulationAccumulator += deltaTime;
-                StepOwnerPrediction();
-            }
-        }
-        else if (IsServer)
-        {
-            serverSimulationAccumulator += deltaTime;
-            StepRemoteServerSimulation();
-        }
-
-        UpdateMovementAnimation(deltaTime);
     }
 
     public override void OnNetworkSpawn()
     {
         DisableEmbeddedLocalControllers();
         CacheFootBones();
-        if (UsesPredictedMovement && networkTransform != null)
+        DisableRootCharacterController();
+
+        if (networkTransform != null)
         {
             networkTransform.enabled = false;
         }
 
-        jumpTimeoutDelta = jumpTimeout;
-        fallTimeoutDelta = fallTimeout;
-        ownerSimulationAccumulator = 0f;
-        serverSimulationAccumulator = 0f;
+        predictedState = CreateInitialState(transform.position, transform.eulerAngles.y);
+        serverState = predictedState;
+        remoteVisualState = predictedState;
+        ownerRenderPositionVelocity = Vector3.zero;
+        ownerVisualCorrectionOffset = Vector3.zero;
+        authoritativeState.OnValueChanged += OnAuthoritativeStateChanged;
         enabled = true;
     }
 
     public override void OnNetworkDespawn()
     {
+        authoritativeState.OnValueChanged -= OnAuthoritativeStateChanged;
+
+        if (characterController != null)
+        {
+            characterController.enabled = true;
+        }
+
         if (networkTransform != null)
         {
             networkTransform.enabled = true;
         }
     }
 
-    private void Reset()
+    private void OnDestroy()
     {
-        if (TryGetComponent(out CharacterController controller))
+        if (penetrationProbeObject != null)
         {
-            controller.minMoveDistance = 0f;
+            Destroy(penetrationProbeObject);
         }
     }
 
-    private void ReadLocalInput()
+    private void Update()
+    {
+        float deltaTime = Time.deltaTime;
+        if (deltaTime <= 0f)
+        {
+            return;
+        }
+
+        if (IsOwner)
+        {
+            HandleDebugOverlayToggle();
+            SampleOwnerInput();
+        }
+
+        if (IsServer)
+        {
+            if (IsOwner)
+            {
+                SampleHostAuthoritativeInput(deltaTime);
+            }
+            else
+            {
+                serverTickAccumulator += deltaTime;
+                StepServerTicks();
+            }
+        }
+        else if (UsesPrediction)
+        {
+            localTickAccumulator += deltaTime;
+            StepPredictedTicks();
+            ApplyPredictedStateToTransform(deltaTime);
+        }
+        else
+        {
+            ApplyRemoteSmoothing(deltaTime);
+        }
+
+        UpdateMovementAnimation(deltaTime);
+    }
+
+    private void SampleOwnerInput()
     {
         Vector2 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
         input = Vector2.ClampMagnitude(input, 1f);
         sampledMoveInput = ResolveMoveDirection(input);
-        sampledJumpPressed |= Input.GetKeyDown(KeyCode.Space);
         sampledSprintHeld = Input.GetKey(KeyCode.LeftShift);
+
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            jumpQueued = true;
+        }
     }
 
-    [ServerRpc(Delivery = RpcDelivery.Unreliable)]
-    private void SubmitMovementServerRpc(PredictedInput predictedInput)
+    private void SampleHostAuthoritativeInput(float deltaTime)
     {
-        serverInputQueue.Enqueue(predictedInput);
-    }
-
-    private void ApplyOwnerPrediction(float deltaTime)
-    {
-        PredictedInput predictedInput = new PredictedInput
+        latestServerInput = new InputCommand
         {
             Sequence = ++nextInputSequence,
             MoveDirection = sampledMoveInput,
-            JumpPressed = sampledJumpPressed,
             SprintHeld = sampledSprintHeld,
-            DeltaTime = deltaTime
+            JumpPressed = jumpQueued
         };
 
-        pendingInputs.Add(predictedInput);
-        serverMoveInput = predictedInput.MoveDirection;
-        serverSprintHeld = predictedInput.SprintHeld;
-        serverJumpRequested |= predictedInput.JumpPressed;
-        ApplyMovementStep(deltaTime, false);
-        SubmitMovementServerRpc(predictedInput);
-        sampledJumpPressed = false;
+        jumpQueued = false;
+        SimulateTick(ref serverState, latestServerInput, deltaTime);
+        ApplyStateToTransform(serverState);
+        PublishAuthoritativeState();
     }
 
-    private void StepOwnerPrediction()
+    private void StepPredictedTicks()
     {
-        float simulationStep = GetSimulationStepDelta();
-        int maxSteps = 4;
-        int stepCount = 0;
+        float tickInterval = TickInterval;
+        int steps = 0;
 
-        while (ownerSimulationAccumulator >= simulationStep && stepCount < maxSteps)
+        while (localTickAccumulator >= tickInterval && steps < 4)
         {
-            ApplyOwnerPrediction(simulationStep);
-            ownerSimulationAccumulator -= simulationStep;
-            stepCount++;
-        }
-
-        ReconcileOwnerPrediction();
-    }
-
-    private void StepRemoteServerSimulation()
-    {
-        float simulationStep = GetSimulationStepDelta();
-        int maxSteps = 4;
-        int stepCount = 0;
-
-        while (serverSimulationAccumulator >= simulationStep && stepCount < maxSteps)
-        {
-            ConsumeNextServerInput();
-            ApplyMovementStep(simulationStep, true);
-            serverSimulationAccumulator -= simulationStep;
-            stepCount++;
+            InputCommand command = BuildPredictedCommand();
+            pendingInputs.Add(command);
+            SimulateTick(ref predictedState, command, tickInterval);
+            SubmitInputServerRpc(command);
+            localTickAccumulator -= tickInterval;
+            steps++;
         }
     }
 
-    private void ConsumeNextServerInput()
+    private void StepServerTicks()
     {
-        PredictedInput nextInput = lastServerInput;
-        bool consumedNewInput = false;
+        float tickInterval = TickInterval;
+        int steps = 0;
 
-        nextInput.JumpPressed = false;
-
-        if (serverInputQueue.Count > 0)
+        while (serverTickAccumulator >= tickInterval && steps < 4)
         {
-            nextInput = serverInputQueue.Dequeue();
-            consumedNewInput = true;
-        }
-
-        serverMoveInput = Vector3.ClampMagnitude(new Vector3(nextInput.MoveDirection.x, 0f, nextInput.MoveDirection.z), 1f);
-        serverSprintHeld = nextInput.SprintHeld;
-        serverJumpRequested |= nextInput.JumpPressed;
-
-        if (consumedNewInput)
-        {
-            lastServerInput = nextInput;
-            lastServerInput.JumpPressed = false;
-            lastProcessedServerInputSequence = nextInput.Sequence;
+            ConsumeLatestServerInput();
+            SimulateTick(ref serverState, latestServerInput, tickInterval);
+            ApplyStateToTransform(serverState);
+            PublishAuthoritativeState();
+            serverTickAccumulator -= tickInterval;
+            steps++;
         }
     }
 
-    private void ApplyMovementStep(float deltaTime, bool updateNetworkState)
+    private InputCommand BuildPredictedCommand()
     {
-        if (characterController == null || deltaTime <= 0f)
+        bool jumpPressed = jumpQueued || (jumpAwaitingServerConsume && jumpResendTicksRemaining > 0);
+        InputCommand command = new InputCommand
+        {
+            Sequence = ++nextInputSequence,
+            MoveDirection = sampledMoveInput,
+            SprintHeld = sampledSprintHeld,
+            JumpPressed = jumpPressed
+        };
+
+        if (jumpPressed)
+        {
+            if (jumpQueued)
+            {
+                jumpRequestSequence = command.Sequence;
+                jumpAwaitingServerConsume = true;
+                jumpResendTicksRemaining = 3;
+                jumpQueued = false;
+            }
+            else if (jumpAwaitingServerConsume && jumpResendTicksRemaining > 0)
+            {
+                jumpResendTicksRemaining--;
+            }
+        }
+
+        return command;
+    }
+
+    [ServerRpc(Delivery = RpcDelivery.Unreliable)]
+    private void SubmitInputServerRpc(InputCommand command)
+    {
+        if (command.Sequence <= latestQueuedServerSequence)
         {
             return;
         }
 
-        bool grounded = characterController.isGrounded;
-        localGroundedState = grounded;
+        latestQueuedServerSequence = command.Sequence;
+        receivedInputs.Enqueue(command);
+    }
 
-        if (grounded)
+    private void ConsumeLatestServerInput()
+    {
+        while (receivedInputs.Count > 0)
         {
-            fallTimeoutDelta = fallTimeout;
-            localFreeFallState = false;
-
-            if (verticalVelocity < 0f)
-            {
-                verticalVelocity = -2f;
-            }
-
-            if (serverJumpRequested && jumpTimeoutDelta <= 0f)
-            {
-                verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
-                localJumpState = true;
-                localGroundedState = false;
-            }
-
-            if (jumpTimeoutDelta > 0f)
-            {
-                jumpTimeoutDelta -= deltaTime;
-            }
+            latestServerInput = receivedInputs.Dequeue();
         }
-        else
-        {
-            jumpTimeoutDelta = jumpTimeout;
+    }
 
-            if (fallTimeoutDelta > 0f)
-            {
-                fallTimeoutDelta -= deltaTime;
-            }
-            else
-            {
-                localFreeFallState = true;
-            }
-        }
-
-        if (verticalVelocity > TerminalVelocity)
-        {
-            verticalVelocity += gravity * deltaTime;
-        }
-
-        float targetSpeed = 0f;
-        bool hasMoveInput = serverMoveInput.sqrMagnitude > 0.0001f;
-        if (hasMoveInput)
-        {
-            targetSpeed = serverSprintHeld ? sprintSpeed : moveSpeed;
-        }
-
-        float currentSpeed = serverPlanarVelocity.magnitude;
+    private void SimulateTick(ref MotorState state, InputCommand command, float deltaTime)
+    {
+        float currentSpeed = state.PlanarVelocity.magnitude;
+        float targetSpeed = command.MoveDirection.sqrMagnitude > 0.0001f
+            ? (command.SprintHeld ? sprintSpeed : moveSpeed)
+            : 0f;
         float speedRate = targetSpeed > currentSpeed ? acceleration : deceleration;
         currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, speedRate * deltaTime);
 
-        if (hasMoveInput)
-        {
-            Vector3 desiredDirection = serverMoveInput.normalized;
-            Vector3 currentDirection = serverPlanarVelocity.sqrMagnitude > 0.0001f
-                ? serverPlanarVelocity.normalized
-                : desiredDirection;
+        Vector3 desiredDirection = command.MoveDirection.sqrMagnitude > 0.0001f
+            ? command.MoveDirection.normalized
+            : Vector3.zero;
 
+        Vector3 planarDirection;
+        if (desiredDirection.sqrMagnitude > 0.0001f)
+        {
+            Vector3 currentDirection = state.PlanarVelocity.sqrMagnitude > 0.0001f
+                ? state.PlanarVelocity.normalized
+                : ForwardFromYaw(state.Yaw);
             float maxRadiansDelta = directionChangeRate * Mathf.Deg2Rad * deltaTime;
-            Vector3 rotatedDirection = Vector3.RotateTowards(currentDirection, desiredDirection, maxRadiansDelta, 0f);
-            serverPlanarVelocity = rotatedDirection.normalized * currentSpeed;
+            planarDirection = Vector3.RotateTowards(currentDirection, desiredDirection, maxRadiansDelta, 0f).normalized;
         }
         else
         {
-            Vector3 currentDirection = serverPlanarVelocity.sqrMagnitude > 0.0001f
-                ? serverPlanarVelocity.normalized
-                : transform.forward;
-            serverPlanarVelocity = currentDirection * currentSpeed;
+            planarDirection = state.PlanarVelocity.sqrMagnitude > 0.0001f
+                ? state.PlanarVelocity.normalized
+                : ForwardFromYaw(state.Yaw);
         }
 
-        if (serverPlanarVelocity.sqrMagnitude > 0.0001f)
+        state.PlanarVelocity = planarDirection * currentSpeed;
+
+        if (desiredDirection.sqrMagnitude > 0.0001f)
         {
-            Vector3 facingDirection = hasMoveInput ? serverMoveInput.normalized : serverPlanarVelocity.normalized;
-            Quaternion targetRotation = Quaternion.LookRotation(facingDirection, Vector3.up);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * deltaTime);
+            float targetYaw = Mathf.Atan2(desiredDirection.x, desiredDirection.z) * Mathf.Rad2Deg;
+            state.Yaw = Mathf.MoveTowardsAngle(state.Yaw, targetYaw, rotationSpeed * deltaTime);
         }
 
-        Vector3 motion = serverPlanarVelocity * deltaTime;
-        motion.y = verticalVelocity * deltaTime;
-        CollisionFlags collisionFlags = characterController.Move(motion);
+        UpdateGroundAndVerticalState(ref state, command, deltaTime);
 
-        bool landedThisFrame = !grounded && (collisionFlags & CollisionFlags.Below) != 0;
-        if (landedThisFrame)
+        Vector3 planarVelocity = state.PlanarVelocity;
+        if (state.Grounded && ProbeGround(state.Position, out _, out RaycastHit groundHit))
         {
-            localJumpState = false;
-            localFreeFallState = false;
-            localGroundedState = true;
-            verticalVelocity = -2f;
-        }
-
-        if (updateNetworkState)
-        {
-            networkGrounded.Value = localGroundedState;
-            networkJump.Value = localJumpState;
-            networkFreeFall.Value = localFreeFallState;
-            networkPlanarSpeed.Value = serverPlanarVelocity.magnitude;
-            networkVerticalSpeed.Value = verticalVelocity;
-            networkGroundGap.Value = SampleGroundGap();
-            networkVisualRootLocalY.Value = GetVisualRootLocalYOffset();
-            networkLowestFootGap.Value = SampleLowestFootGap();
-            authoritativeState.Value = new ReconciliationState
+            Vector3 slopeVelocity = Vector3.ProjectOnPlane(state.PlanarVelocity, groundHit.normal);
+            if (slopeVelocity.sqrMagnitude > 0.0001f)
             {
-                LastProcessedInputSequence = lastProcessedServerInputSequence,
-                Position = transform.position,
-                Rotation = transform.rotation,
-                PlanarVelocity = serverPlanarVelocity,
-                VerticalVelocity = verticalVelocity,
-                JumpTimeoutDelta = jumpTimeoutDelta,
-                FallTimeoutDelta = fallTimeoutDelta,
-                Grounded = localGroundedState,
-                Jump = localJumpState,
-                FreeFall = localFreeFallState
-            };
+                planarVelocity = slopeVelocity.normalized * state.PlanarVelocity.magnitude;
+            }
         }
 
-        serverJumpRequested = false;
+        Vector3 planarMotion = planarVelocity * deltaTime;
+        Vector3 motion;
+        if (state.Grounded && state.VerticalVelocity <= 0f)
+        {
+            motion = TryBuildGroundFollowMotion(state.Position, planarMotion, out Vector3 groundFollowMotion)
+                ? groundFollowMotion
+                : planarMotion;
+        }
+        else
+        {
+            motion = planarMotion;
+            motion.y = state.VerticalVelocity * deltaTime;
+        }
+
+        CollisionFlags flags;
+        state.Position = MoveWithCollision(state.Position, motion, state.Grounded, out flags);
+
+        if ((flags & CollisionFlags.Above) != 0 && state.VerticalVelocity > 0f)
+        {
+            state.VerticalVelocity = 0f;
+        }
+
+        ResolvePenetration(ref state.Position);
+
+        if ((flags & CollisionFlags.Below) != 0 && state.VerticalVelocity <= 0f)
+        {
+            state.Grounded = true;
+            state.FreeFall = false;
+            state.Jump = false;
+            state.VerticalVelocity = GroundStickVelocity;
+            state.FallTimeoutDelta = fallTimeout;
+        }
+
+        FinalizeGroundState(ref state);
+        state.LastProcessedInputSequence = command.Sequence;
     }
 
-    private void ReconcileOwnerPrediction()
+    private void UpdateGroundAndVerticalState(ref MotorState state, InputCommand command, float deltaTime)
     {
-        ReconciliationState state = authoritativeState.Value;
-        if (state.LastProcessedInputSequence == 0 || state.LastProcessedInputSequence == lastAppliedReconciliationSequence)
+        bool wasGrounded = state.Grounded;
+        bool grounded = state.VerticalVelocity <= 0f && TrySnapToGround(ref state, groundSnapDistance);
+
+        if (grounded)
         {
-            return;
+            state.Grounded = true;
+            state.FreeFall = false;
+            state.FallTimeoutDelta = fallTimeout;
+            state.GroundedGraceDelta = groundedGraceTime;
+
+            if (state.VerticalVelocity < 0f)
+            {
+                state.VerticalVelocity = GroundStickVelocity;
+            }
+
+            if (command.JumpPressed && command.Sequence > state.LastConsumedJumpSequence && state.JumpTimeoutDelta <= 0f)
+            {
+                state.VerticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                state.Jump = true;
+                state.Grounded = false;
+                state.LastConsumedJumpSequence = command.Sequence;
+            }
+
+            if (state.JumpTimeoutDelta > 0f)
+            {
+                state.JumpTimeoutDelta -= deltaTime;
+            }
         }
-
-        lastAppliedReconciliationSequence = state.LastProcessedInputSequence;
-        lastReconciliationPositionError = Vector3.Distance(transform.position, state.Position);
-        lastReconciliationRotationError = Quaternion.Angle(transform.rotation, state.Rotation);
-
-        bool largeError = lastReconciliationPositionError > PredictionErrorTeleportThreshold;
-        bool smallError = lastReconciliationPositionError < 0.04f && lastReconciliationRotationError < 2f;
-
-        if (!smallError)
+        else if (wasGrounded && state.VerticalVelocity <= 0f && state.GroundedGraceDelta > 0f)
         {
-            ApplyAuthoritativeState(state);
+            state.Grounded = true;
+            state.FreeFall = false;
+            state.Jump = false;
+            state.FallTimeoutDelta = fallTimeout;
+            state.GroundedGraceDelta = Mathf.Max(0f, state.GroundedGraceDelta - deltaTime);
+
+            if (state.VerticalVelocity < 0f)
+            {
+                state.VerticalVelocity = GroundStickVelocity;
+            }
         }
         else
         {
-            serverPlanarVelocity = state.PlanarVelocity;
-            verticalVelocity = state.VerticalVelocity;
-            jumpTimeoutDelta = state.JumpTimeoutDelta;
-            fallTimeoutDelta = state.FallTimeoutDelta;
-            localGroundedState = state.Grounded;
-            localJumpState = state.Jump;
-            localFreeFallState = state.FreeFall;
-            TrimAcknowledgedInputs(state.LastProcessedInputSequence);
+            state.Grounded = false;
+            state.JumpTimeoutDelta = jumpTimeout;
+            state.GroundedGraceDelta = 0f;
+
+            if (state.FallTimeoutDelta > 0f)
+            {
+                state.FallTimeoutDelta -= deltaTime;
+            }
+            else
+            {
+                state.FreeFall = true;
+            }
+        }
+
+        if (state.VerticalVelocity > TerminalVelocity)
+        {
+            state.VerticalVelocity += gravity * deltaTime;
+        }
+    }
+
+    private void FinalizeGroundState(ref MotorState state)
+    {
+        bool grounded = state.VerticalVelocity <= 0f && TrySnapToGround(ref state, groundSnapDistance + collisionSkin);
+        if (grounded && state.VerticalVelocity <= 0f)
+        {
+            state.Grounded = true;
+            state.FreeFall = false;
+            state.Jump = false;
+            state.VerticalVelocity = GroundStickVelocity;
+            state.FallTimeoutDelta = fallTimeout;
+            state.GroundedGraceDelta = groundedGraceTime;
+        }
+    }
+
+    private Vector3 MoveWithCollision(Vector3 position, Vector3 motion, bool grounded, out CollisionFlags collisionFlags)
+    {
+        collisionFlags = CollisionFlags.None;
+        Vector3 currentPosition = position;
+        Vector3 remainingMotion = motion;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (remainingMotion.sqrMagnitude <= 0.000001f)
+            {
+                break;
+            }
+
+            GetCapsulePoints(currentPosition, out Vector3 bottom, out Vector3 top);
+            float distance = remainingMotion.magnitude;
+            Vector3 direction = remainingMotion / distance;
+
+            if (Physics.CapsuleCast(bottom, top, CollisionRadius, direction, out RaycastHit hit, distance + collisionSkin, collisionLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (grounded && TryStepUp(ref currentPosition, remainingMotion, hit, out Vector3 steppedMotion))
+                {
+                    remainingMotion = steppedMotion;
+                    continue;
+                }
+
+                float travel = Mathf.Max(hit.distance - collisionSkin, 0f);
+                currentPosition += direction * travel;
+
+                if (hit.normal.y >= GetGroundNormalThreshold())
+                {
+                    collisionFlags |= CollisionFlags.Below;
+                    currentPosition += hit.normal * collisionSkin;
+
+                    Vector3 slopeLeftover = remainingMotion - direction * travel;
+                    Vector3 slopeMotion = Vector3.ProjectOnPlane(slopeLeftover, hit.normal);
+                    if (slopeMotion.y < 0f)
+                    {
+                        slopeMotion.y = 0f;
+                    }
+
+                    remainingMotion = slopeMotion;
+                    continue;
+                }
+
+                if (hit.normal.y <= -0.5f)
+                {
+                    collisionFlags |= CollisionFlags.Above;
+                }
+                else
+                {
+                    collisionFlags |= CollisionFlags.Sides;
+                }
+
+                currentPosition += hit.normal * collisionSkin;
+                Vector3 leftover = remainingMotion - direction * travel;
+                remainingMotion = Vector3.ProjectOnPlane(leftover, hit.normal);
+            }
+            else
+            {
+                currentPosition += remainingMotion;
+                break;
+            }
+        }
+
+        return currentPosition;
+    }
+
+    private bool TryStepUp(ref Vector3 currentPosition, Vector3 intendedMotion, RaycastHit blockingHit, out Vector3 steppedMotion)
+    {
+        steppedMotion = intendedMotion;
+
+        if (StepOffsetHeight <= 0.01f || blockingHit.normal.y >= GetGroundNormalThreshold())
+        {
+            return false;
+        }
+
+        Vector3 horizontalMotion = Vector3.ProjectOnPlane(intendedMotion, Vector3.up);
+        if (horizontalMotion.sqrMagnitude <= 0.000001f)
+        {
+            return false;
+        }
+
+        Vector3 stepUp = Vector3.up * (StepOffsetHeight + collisionSkin);
+        Vector3 steppedPosition = currentPosition + stepUp;
+        GetCapsulePoints(steppedPosition, out Vector3 steppedBottom, out Vector3 steppedTop);
+
+        if (Physics.CheckCapsule(steppedBottom, steppedTop, CollisionRadius, collisionLayers, QueryTriggerInteraction.Ignore))
+        {
+            return false;
+        }
+
+        Vector3 horizontalDirection = horizontalMotion.normalized;
+        float horizontalDistance = horizontalMotion.magnitude;
+        if (Physics.CapsuleCast(steppedBottom, steppedTop, CollisionRadius, horizontalDirection, out RaycastHit stepHit, horizontalDistance + collisionSkin, collisionLayers, QueryTriggerInteraction.Ignore))
+        {
+            return false;
+        }
+
+        currentPosition = steppedPosition;
+        steppedMotion = horizontalMotion;
+        return true;
+    }
+
+    private bool ProbeGround(Vector3 position, out float distanceToGround, out RaycastHit hit)
+    {
+        GetCapsulePoints(position, out Vector3 bottom, out _);
+        Vector3 origin = bottom + Vector3.up * (groundProbeDistance + collisionSkin);
+        float castDistance = groundProbeDistance + groundSnapDistance + collisionSkin;
+
+        if (Physics.SphereCast(origin, CollisionRadius, Vector3.down, out hit, castDistance, collisionLayers, QueryTriggerInteraction.Ignore))
+        {
+            distanceToGround = Mathf.Max(hit.distance - groundProbeDistance - collisionSkin, 0f);
+            return hit.normal.y >= GetGroundNormalThreshold();
+        }
+
+        distanceToGround = float.MaxValue;
+        return false;
+    }
+
+    private bool TrySnapToGround(ref MotorState state, float maxSnapDistance)
+    {
+        if (!ProbeGround(state.Position, out float groundDistance, out _))
+        {
+            return false;
+        }
+
+        if (groundDistance > 0f && groundDistance <= maxSnapDistance)
+        {
+            state.Position += Vector3.down * groundDistance;
+        }
+
+        return groundDistance <= maxSnapDistance + collisionSkin;
+    }
+
+    private bool TryBuildGroundFollowMotion(Vector3 startPosition, Vector3 planarMotion, out Vector3 adjustedMotion)
+    {
+        adjustedMotion = planarMotion;
+
+        Vector3 horizontalMotion = Vector3.ProjectOnPlane(planarMotion, Vector3.up);
+        if (horizontalMotion.sqrMagnitude <= 0.000001f)
+        {
+            return false;
+        }
+
+        Vector3 targetPosition = startPosition + horizontalMotion;
+        GetCapsulePoints(targetPosition, out Vector3 bottom, out _);
+
+        float castUp = StepOffsetHeight + groundProbeDistance + groundSnapDistance + collisionSkin + 0.05f;
+        Vector3 origin = bottom + Vector3.up * castUp;
+        float castDistance = castUp + StepOffsetHeight + groundProbeDistance + groundSnapDistance + 0.05f;
+
+        if (!Physics.SphereCast(origin, CollisionRadius, Vector3.down, out RaycastHit hit, castDistance, collisionLayers, QueryTriggerInteraction.Ignore))
+        {
+            return false;
+        }
+
+        if (hit.normal.y < GetGroundNormalThreshold())
+        {
+            return false;
+        }
+
+        float resolvedY = origin.y - hit.distance - CollisionRadius;
+        float heightDelta = resolvedY - startPosition.y;
+        float maxClimb = StepOffsetHeight + groundSnapDistance + 0.1f;
+        float maxDrop = groundSnapDistance + 0.1f;
+        if (heightDelta > maxClimb || heightDelta < -maxDrop)
+        {
+            return false;
+        }
+
+        adjustedMotion = new Vector3(horizontalMotion.x, heightDelta, horizontalMotion.z);
+        return true;
+    }
+
+    private void GetCapsulePoints(Vector3 position, out Vector3 bottom, out Vector3 top)
+    {
+        Vector3 center = position + CapsuleCenter;
+        float halfHeight = Mathf.Max(0f, CollisionHeight * 0.5f - CollisionRadius);
+        bottom = center + Vector3.down * halfHeight;
+        top = center + Vector3.up * halfHeight;
+    }
+
+    private float GetGroundNormalThreshold()
+    {
+        return Mathf.Cos(SlopeLimitDegrees * Mathf.Deg2Rad);
+    }
+
+    private void EnsurePenetrationProbe()
+    {
+        if (penetrationProbe != null)
+        {
+            UpdatePenetrationProbeShape();
             return;
         }
 
-        TrimAcknowledgedInputs(state.LastProcessedInputSequence);
+        penetrationProbeObject = new GameObject($"{name}_PenetrationProbe");
+        penetrationProbeObject.hideFlags = HideFlags.HideAndDontSave;
+        penetrationProbeObject.layer = gameObject.layer;
+        penetrationProbe = penetrationProbeObject.AddComponent<CapsuleCollider>();
+        penetrationProbe.isTrigger = true;
+        penetrationProbe.direction = 1;
+        UpdatePenetrationProbeShape();
+    }
+
+    private void UpdatePenetrationProbeShape()
+    {
+        if (penetrationProbe == null)
+        {
+            return;
+        }
+
+        penetrationProbe.center = cachedControllerCenter;
+        penetrationProbe.radius = cachedControllerRadius;
+        penetrationProbe.height = cachedControllerHeight;
+    }
+
+    private void ResolvePenetration(ref Vector3 position)
+    {
+        EnsurePenetrationProbe();
+        if (penetrationProbe == null)
+        {
+            return;
+        }
+
+        for (int iteration = 0; iteration < 4; iteration++)
+        {
+            GetCapsulePoints(position, out Vector3 bottom, out Vector3 top);
+            int overlapCount = Physics.OverlapCapsuleNonAlloc(
+                bottom,
+                top,
+                CollisionRadius + collisionSkin,
+                overlapResults,
+                collisionLayers,
+                QueryTriggerInteraction.Ignore);
+
+            if (overlapCount == 0)
+            {
+                break;
+            }
+
+            Vector3 totalSeparation = Vector3.zero;
+            int separationCount = 0;
+
+            for (int i = 0; i < overlapCount; i++)
+            {
+                Collider other = overlapResults[i];
+                overlapResults[i] = null;
+
+                if (other == null || other == penetrationProbe || other.transform == transform || other.transform.IsChildOf(transform))
+                {
+                    continue;
+                }
+
+                if (!Physics.ComputePenetration(
+                    penetrationProbe,
+                    position,
+                    Quaternion.identity,
+                    other,
+                    other.transform.position,
+                    other.transform.rotation,
+                    out Vector3 direction,
+                    out float distance))
+                {
+                    continue;
+                }
+
+                totalSeparation += direction * (distance + collisionSkin);
+                separationCount++;
+            }
+
+            if (separationCount == 0)
+            {
+                break;
+            }
+
+            position += totalSeparation / separationCount;
+        }
+    }
+
+    private void CacheControllerGeometry()
+    {
+        if (characterController == null)
+        {
+            cachedControllerRadius = 0.45f;
+            cachedControllerHeight = 2f;
+            cachedControllerCenter = new Vector3(0f, 1f, 0f);
+            cachedSlopeLimit = 45f;
+            cachedStepOffset = 0.3f;
+            return;
+        }
+
+        cachedControllerRadius = characterController.radius;
+        cachedControllerHeight = characterController.height;
+        cachedControllerCenter = characterController.center;
+        cachedSlopeLimit = characterController.slopeLimit;
+        cachedStepOffset = characterController.stepOffset;
+        UpdatePenetrationProbeShape();
+    }
+
+    private void DisableRootCharacterController()
+    {
+        if (characterController != null && characterController.enabled)
+        {
+            characterController.enabled = false;
+        }
+    }
+
+    private void PublishAuthoritativeState()
+    {
+        authoritativeState.Value = serverState;
+    }
+
+    private void OnAuthoritativeStateChanged(MotorState previousState, MotorState newState)
+    {
+        if (IsServer)
+        {
+            return;
+        }
+
+        if (UsesPrediction)
+        {
+            ApplyOwnerReconciliation(newState);
+        }
+        else
+        {
+            remoteVisualState = newState;
+        }
+    }
+
+    private void ApplyOwnerReconciliation(MotorState newState)
+    {
+        Vector3 previousRenderTarget = GetPredictedRenderPosition();
+        lastReceivedAuthoritativeSequence = newState.LastProcessedInputSequence;
+        lastReconciliationPositionError = Vector3.Distance(predictedState.Position, newState.Position);
+        lastReconciliationRotationError = Mathf.Abs(Mathf.DeltaAngle(predictedState.Yaw, newState.Yaw));
+
+        predictedState = newState;
+        TrimAcknowledgedInputs(newState.LastProcessedInputSequence);
 
         for (int i = 0; i < pendingInputs.Count; i++)
         {
-            PredictedInput predictedInput = pendingInputs[i];
-            serverMoveInput = predictedInput.MoveDirection;
-            serverSprintHeld = predictedInput.SprintHeld;
-            serverJumpRequested |= predictedInput.JumpPressed;
-            ApplyMovementStep(predictedInput.DeltaTime, false);
+            SimulateTick(ref predictedState, pendingInputs[i], TickInterval);
         }
 
-    }
+        Vector3 correctedRenderTarget = GetPredictedRenderPosition();
+        if (lastReconciliationPositionError > MaxCorrectionDistance)
+        {
+            ownerVisualCorrectionOffset = Vector3.zero;
+            ownerRenderPositionVelocity = Vector3.zero;
+        }
+        else
+        {
+            ownerVisualCorrectionOffset += previousRenderTarget - correctedRenderTarget;
+            ownerVisualCorrectionOffset = Vector3.ClampMagnitude(ownerVisualCorrectionOffset, 0.35f);
+        }
 
-    private void ApplyAuthoritativeState(ReconciliationState state)
-    {
-        transform.SetPositionAndRotation(state.Position, state.Rotation);
-        serverPlanarVelocity = state.PlanarVelocity;
-        verticalVelocity = state.VerticalVelocity;
-        jumpTimeoutDelta = state.JumpTimeoutDelta;
-        fallTimeoutDelta = state.FallTimeoutDelta;
-        localGroundedState = state.Grounded;
-        localJumpState = state.Jump;
-        localFreeFallState = state.FreeFall;
+        if (jumpAwaitingServerConsume && jumpRequestSequence > 0 && newState.LastConsumedJumpSequence >= jumpRequestSequence)
+        {
+            jumpAwaitingServerConsume = false;
+            jumpResendTicksRemaining = 0;
+            jumpRequestSequence = 0;
+        }
     }
 
     private void TrimAcknowledgedInputs(uint processedSequence)
@@ -566,6 +960,65 @@ public class PlayerController : NetworkBehaviour
         {
             pendingInputs.RemoveAt(0);
         }
+    }
+
+    private void ApplyPredictedStateToTransform(float deltaTime)
+    {
+        float offsetDecay = 1f - Mathf.Exp(-18f * deltaTime);
+        ownerVisualCorrectionOffset = Vector3.Lerp(ownerVisualCorrectionOffset, Vector3.zero, offsetDecay);
+        Vector3 targetPosition = GetPredictedRenderPosition() + ownerVisualCorrectionOffset;
+
+        if (lastReconciliationPositionError > MaxCorrectionDistance)
+        {
+            transform.position = targetPosition;
+            ownerRenderPositionVelocity = Vector3.zero;
+        }
+        else
+        {
+            float smoothTime = predictedState.Grounded ? 0.028f : 0.02f;
+            transform.position = Vector3.SmoothDamp(
+                transform.position,
+                targetPosition,
+                ref ownerRenderPositionVelocity,
+                smoothTime,
+                Mathf.Infinity,
+                deltaTime);
+        }
+
+        Quaternion targetRotation = Quaternion.Euler(0f, predictedState.Yaw, 0f);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-36f * deltaTime));
+    }
+
+    private Vector3 GetPredictedRenderPosition()
+    {
+        Vector3 renderPosition = predictedState.Position;
+        float extrapolationTime = Mathf.Clamp(localTickAccumulator, 0f, TickInterval);
+        if (extrapolationTime <= 0f)
+        {
+            return renderPosition;
+        }
+
+        Vector3 extrapolatedMotion = predictedState.PlanarVelocity * extrapolationTime;
+        if (!predictedState.Grounded || predictedState.VerticalVelocity > 0f)
+        {
+            extrapolatedMotion.y = predictedState.VerticalVelocity * extrapolationTime;
+        }
+
+        return renderPosition + extrapolatedMotion;
+    }
+
+    private void ApplyRemoteSmoothing(float deltaTime)
+    {
+        Vector3 targetPosition = remoteVisualState.Position;
+        transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref remoteRenderPositionVelocity, 1f / Mathf.Max(remotePositionLerp, 0.01f), Mathf.Infinity, deltaTime);
+        Quaternion targetRotation = Quaternion.Euler(0f, remoteVisualState.Yaw, 0f);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-remoteRotationLerp * deltaTime));
+    }
+
+    private void ApplyStateToTransform(MotorState state)
+    {
+        transform.position = state.Position;
+        transform.rotation = Quaternion.Euler(0f, state.Yaw, 0f);
     }
 
     private void UpdateMovementAnimation(float deltaTime)
@@ -578,9 +1031,11 @@ public class PlayerController : NetworkBehaviour
         float targetVisualSpeed = GetAnimationSpeedSource();
         visualSpeed = Mathf.MoveTowards(visualSpeed, targetVisualSpeed, 18f * deltaTime);
         characterAnimator.SetFloat(SpeedHash, visualSpeed);
-        characterAnimator.SetBool(GroundedHash, UsesPredictedMovement ? localGroundedState : networkGrounded.Value);
-        characterAnimator.SetBool(JumpHash, UsesPredictedMovement ? localJumpState : networkJump.Value);
-        characterAnimator.SetBool(FreeFallHash, UsesPredictedMovement ? localFreeFallState : networkFreeFall.Value);
+
+        MotorState animState = GetAnimationState();
+        characterAnimator.SetBool(GroundedHash, animState.Grounded);
+        characterAnimator.SetBool(JumpHash, animState.Jump);
+        characterAnimator.SetBool(FreeFallHash, animState.FreeFall);
 
         float motionSpeed = 0f;
         if (visualSpeed > 0.05f && moveSpeed > 0.001f)
@@ -591,25 +1046,24 @@ public class PlayerController : NetworkBehaviour
         characterAnimator.SetFloat(MotionSpeedHash, motionSpeed);
     }
 
-    private float GetAnimationSpeedSource()
+    private MotorState GetAnimationState()
     {
-        if (UsesPredictedMovement || IsServer)
+        if (IsServer)
         {
-            return serverPlanarVelocity.magnitude;
+            return serverState;
         }
 
-        return networkPlanarSpeed.Value;
+        return UsesPrediction ? predictedState : remoteVisualState;
     }
 
-    private float GetSimulationStepDelta()
+    private float GetAnimationSpeedSource()
     {
-        int tickRate = GetCurrentTickRate();
-        if (tickRate <= 0)
+        if (IsServer)
         {
-            return 1f / 60f;
+            return serverState.PlanarVelocity.magnitude;
         }
 
-        return 1f / tickRate;
+        return UsesPrediction ? predictedState.PlanarVelocity.magnitude : remoteVisualState.PlanarVelocity.magnitude;
     }
 
     private Vector3 ResolveMoveDirection(Vector2 input)
@@ -636,6 +1090,34 @@ public class PlayerController : NetworkBehaviour
         return moveDirection.sqrMagnitude > 0.0001f ? moveDirection.normalized : Vector3.zero;
     }
 
+    private MotorState CreateInitialState(Vector3 position, float yaw)
+    {
+        MotorState state = new MotorState
+        {
+            Position = position,
+            Yaw = yaw,
+            PlanarVelocity = Vector3.zero,
+            VerticalVelocity = GroundStickVelocity,
+            JumpTimeoutDelta = jumpTimeout,
+            FallTimeoutDelta = fallTimeout,
+            GroundedGraceDelta = groundedGraceTime,
+            Grounded = true,
+            Jump = false,
+            FreeFall = false
+        };
+
+        TrySnapToGround(ref state, groundProbeDistance + groundSnapDistance + 0.5f);
+        ResolvePenetration(ref state.Position);
+        FinalizeGroundState(ref state);
+        return state;
+    }
+
+    private static Vector3 ForwardFromYaw(float yaw)
+    {
+        float radians = yaw * Mathf.Deg2Rad;
+        return new Vector3(Mathf.Sin(radians), 0f, Mathf.Cos(radians));
+    }
+
     private void HandleDebugOverlayToggle()
     {
         if (Input.GetKeyDown(debugOverlayToggleKey))
@@ -654,42 +1136,32 @@ public class PlayerController : NetworkBehaviour
         GUILayout.BeginArea(DebugWindowRect, "Network Movement Debug", GUI.skin.window);
         debugScrollPosition = GUILayout.BeginScrollView(debugScrollPosition, false, true);
         GUILayout.Label($"Role: {GetLocalRoleLabel()}");
+        GUILayout.Label($"TickRate: {GetCurrentTickRate()}");
         GUILayout.Label($"RTT: {GetCurrentRttMs()} ms");
         GUILayout.Label($"Pos: {FormatVector3(transform.position)}");
-        GUILayout.Label($"Planar Speed: local {visualSpeed:F2} | server {networkPlanarSpeed.Value:F2}");
-        GUILayout.Label($"Vertical Speed: server {networkVerticalSpeed.Value:F2}");
-        GUILayout.Label($"Grounded: server {networkGrounded.Value}");
-        GUILayout.Label($"Jump/FreeFall: {networkJump.Value} / {networkFreeFall.Value}");
-        GUILayout.Label($"Ground Gap: local {SampleGroundGap():F3} | server {networkGroundGap.Value:F3}");
-        GUILayout.Label($"Visual Root Y: local {GetVisualRootLocalYOffset():F3} | server {networkVisualRootLocalY.Value:F3}");
-        GUILayout.Label($"Lowest Foot Gap: local {SampleLowestFootGap():F3} | server {networkLowestFootGap.Value:F3}");
+        GUILayout.Label($"Predicted Pos: {FormatVector3(predictedState.Position)}");
+        GUILayout.Label($"Authoritative Pos: {FormatVector3(authoritativeState.Value.Position)}");
+        GUILayout.Label($"Planar Speed: {GetAnimationSpeedSource():F2}");
         GUILayout.Label($"Pending Inputs: {pendingInputs.Count}");
         GUILayout.Label($"Reconcile Error: pos {lastReconciliationPositionError:F3} | rot {lastReconciliationRotationError:F1}");
-        GUILayout.Label($"Authoritative Pos: {FormatVector3(authoritativeState.Value.Position)}");
-        GUILayout.Label($"TickRate: {GetCurrentTickRate()}");
-        GUILayout.Label($"Toggle: {debugOverlayToggleKey}");
+        GUILayout.Label($"Grounded: {GetAnimationState().Grounded}");
+        GUILayout.Label($"Jump/FreeFall: {GetAnimationState().Jump} / {GetAnimationState().FreeFall}");
+        GUILayout.Label($"Ground Gap: {SampleGroundGap():F3}");
+        GUILayout.Label($"Visual Root Y: {GetVisualRootLocalYOffset():F3}");
+        GUILayout.Label($"Lowest Foot Gap: {SampleLowestFootGap():F3}");
         GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
 
     private float SampleGroundGap()
     {
-        if (characterController == null)
-        {
-            return -1f;
-        }
+        ProbeGround(transform.position, out float distanceToGround, out _);
+        return distanceToGround == float.MaxValue ? -1f : distanceToGround;
+    }
 
-        Bounds bounds = characterController.bounds;
-        Vector3 origin = bounds.center + Vector3.up * (bounds.extents.y + 0.05f);
-        float castDistance = bounds.size.y + 2f;
-
-        if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, castDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
-        {
-            return -1f;
-        }
-
-        float gap = hit.distance - bounds.size.y;
-        return Mathf.Max(0f, gap);
+    private float GetVisualRootLocalYOffset()
+    {
+        return visualRoot != null ? visualRoot.localPosition.y - initialVisualRootLocalPosition.y : 0f;
     }
 
     private float SampleLowestFootGap()
@@ -720,17 +1192,12 @@ public class PlayerController : NetworkBehaviour
         }
 
         Vector3 origin = bone.position + Vector3.up * 0.05f;
-        if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 2f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 2f, collisionLayers, QueryTriggerInteraction.Ignore))
         {
             return -1f;
         }
 
         return Mathf.Max(0f, hit.distance - 0.05f);
-    }
-
-    private float GetVisualRootLocalYOffset()
-    {
-        return visualRoot != null ? visualRoot.localPosition.y - initialVisualRootLocalPosition.y : 0f;
     }
 
     private void CacheFootBones()

@@ -102,10 +102,20 @@ MonoBehaviour:
   deceleration: 30
   directionChangeRate: 1440
   motionSpeedMultiplier: 0.8
-  jumpHeight: 2
-  gravity: -24
+  jumpHeight: 3
+  gravity: -30
   jumpTimeout: 0.2
-  fallTimeout: 0.12
+  fallTimeout: 0.02
+  groundProbeDistance: 0.7
+  groundSnapDistance: 0.3
+  collisionSkin: 0.02
+  remotePositionLerp: 18
+  remoteRotationLerp: 18
+  collisionLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  showNetworkDebugOverlay: 0
+  debugOverlayToggleKey: 284
 --- !u!114 &3599475201163701001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -163,6 +173,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 9076817243821489904}
     m_Modifications:
+    - target: {fileID: 657185006897926158, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1097289691613961919, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -209,6 +223,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1688605434684233438, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
       propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2383631508651570851, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
+      propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2696116442362372574, guid: 7ae956b4f54394e80818898d8f4d30c6, type: 3}
