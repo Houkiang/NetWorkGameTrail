@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [DisallowMultipleComponent]
 public class DebugOverlayController : MonoBehaviour
@@ -50,6 +53,7 @@ public class DebugOverlayController : MonoBehaviour
     private Canvas canvas;
     private CanvasGroup canvasGroup;
     private RectTransform contentRoot;
+    private bool rebuildQueued;
 
     private void Awake()
     {
@@ -66,9 +70,7 @@ public class DebugOverlayController : MonoBehaviour
             return;
         }
 
-        RebuildCanvas();
-        ApplyVisibilityState();
-        RefreshDebugContents();
+        QueueRebuildCanvas();
     }
 
     private void Update()
@@ -82,8 +84,17 @@ public class DebugOverlayController : MonoBehaviour
         RefreshDebugContents();
     }
 
+    private void OnDestroy()
+    {
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= PerformQueuedRebuild;
+#endif
+    }
+
     private void RebuildCanvas()
     {
+        rebuildQueued = false;
+
         if (canvas != null)
         {
             Destroy(canvas.gameObject);
@@ -94,6 +105,44 @@ public class DebugOverlayController : MonoBehaviour
         canvasGroup = null;
         canvas = null;
         BuildCanvas();
+    }
+
+    private void QueueRebuildCanvas()
+    {
+        if (rebuildQueued)
+        {
+            return;
+        }
+
+        rebuildQueued = true;
+
+#if UNITY_EDITOR
+        EditorApplication.delayCall += PerformQueuedRebuild;
+#else
+        Invoke(nameof(PerformQueuedRebuild), 0f);
+#endif
+    }
+
+    private void PerformQueuedRebuild()
+    {
+        if (this == null)
+        {
+            return;
+        }
+
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= PerformQueuedRebuild;
+#endif
+
+        if (!Application.isPlaying)
+        {
+            rebuildQueued = false;
+            return;
+        }
+
+        RebuildCanvas();
+        ApplyVisibilityState();
+        RefreshDebugContents();
     }
 
     private void BuildCanvas()

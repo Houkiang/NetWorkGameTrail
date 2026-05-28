@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 7020051071903670318}
   - component: {fileID: 3599475201163701001}
   - component: {fileID: 4900024290872578271}
+  - component: {fileID: 6273141592653589793}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: Player
@@ -106,6 +107,7 @@ MonoBehaviour:
   gravity: -30
   jumpTimeout: 0.2
   fallTimeout: 0.02
+  groundedGraceTime: 0.05
   groundProbeDistance: 0.7
   groundSnapDistance: 0.3
   collisionSkin: 0.02
@@ -131,8 +133,8 @@ MonoBehaviour:
   mainCameraPrefab: {fileID: 8944336655422409498, guid: f6d148d888ffbf54b9afe9936dfaec1f, type: 3}
   virtualCameraPrefab: {fileID: 2070925441746177671, guid: a1a802ecaf6775746bb2a929fb554ad8, type: 3}
   lookSensitivity: 1.2
-  topClamp: 70
-  bottomClamp: -30
+  topClamp: 80
+  bottomClamp: -80
   initialPitch: 12
   invertY: 0
 --- !u!114 &4900024290872578271
@@ -165,6 +167,33 @@ MonoBehaviour:
   InLocalSpace: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &6273141592653589793
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8184112481968693095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95ed2c91c1a14e93a33b42fe2f6b3d6d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minimapDiameter: 500
+  minimapMargin: 24
+  minimapInset: 8
+  playerIconSize: 36
+  cameraHeight: 90
+  orthographicSize: 32
+  renderTextureSize: 512
+  minimapProxyLayer: 30
+  outlineScale: 1.04
+  outlineHeightScale: 1.02
+  outlineLineWidth: 0.6
+  backgroundColor: {r: 0.07692107, g: 0.1648826, b: 0.32614553, a: 1}
+  buildingOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+  selfArrowColor: {r: 0.3, g: 1, b: 0.72, a: 1}
+  otherPlayerArrowColor: {r: 1, g: 0.77, b: 0.34, a: 1}
 --- !u!1001 &2265493146543713205
 PrefabInstance:
   m_ObjectHideFlags: 0
