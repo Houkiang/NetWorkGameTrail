@@ -27,7 +27,7 @@ Material:
   m_ValidKeywords:
   - _NORMALMAP
   - _OCCLUSIONMAP
-  - _PARALLAXMAP
+  - _SPECULAR_SETUP
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -69,7 +69,7 @@ Material:
     - _Glossiness: 0.30996522
     - _Metallic: 0.52
     - _Parallax: 0.005
-    - _Smoothness: 0.30996522
+    - _Smoothness: 0.199
     m_Colors:
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
