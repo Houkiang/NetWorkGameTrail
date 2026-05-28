@@ -96,15 +96,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 5
-  sprintSpeed: 12
+  sprintSpeed: 10
   rotationSpeed: 1080
   acceleration: 24
   deceleration: 30
   directionChangeRate: 1440
-  jumpHeight: 1.2
-  gravity: -15
-  jumpTimeout: 0.3
-  fallTimeout: 0.15
+  motionSpeedMultiplier: 0.8
+  jumpHeight: 2
+  gravity: -24
+  jumpTimeout: 0.2
+  fallTimeout: 0.12
 --- !u!114 &3599475201163701001
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -27,6 +27,9 @@ public class PlayerController : NetworkBehaviour
     private float directionChangeRate = 1440f;
 
     [SerializeField]
+    private float motionSpeedMultiplier = 1f;
+
+    [SerializeField]
     private float jumpHeight = 1.2f;
 
     [SerializeField]
@@ -265,7 +268,12 @@ public class PlayerController : NetworkBehaviour
         characterAnimator.SetBool(JumpHash, networkJump.Value);
         characterAnimator.SetBool(FreeFallHash, networkFreeFall.Value);
 
-        float motionSpeed = visualSpeed > 0.05f ? 1f : 0f;
+        float motionSpeed = 0f;
+        if (visualSpeed > 0.05f && moveSpeed > 0.001f)
+        {
+            motionSpeed = Mathf.Max(0.1f, (visualSpeed / moveSpeed) * motionSpeedMultiplier);
+        }
+
         characterAnimator.SetFloat(MotionSpeedHash, motionSpeed);
     }
 
