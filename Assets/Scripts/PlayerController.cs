@@ -473,6 +473,10 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         }
 
         state.PlanarVelocity = planarDirection * currentSpeed;
+        if (state.Grounded && targetSpeed <= 0f && currentSpeed <= 0.05f)
+        {
+            state.PlanarVelocity = Vector3.zero;
+        }
 
         if (desiredDirection.sqrMagnitude > 0.0001f)
         {
@@ -514,7 +518,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
             state.VerticalVelocity = 0f;
         }
 
-        ResolvePenetration(ref state.Position);
+        ResolvePenetration(ref state.Position, state.Grounded);
 
         if ((flags & CollisionFlags.Below) != 0 && state.VerticalVelocity <= 0f)
         {
@@ -824,7 +828,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         penetrationProbe.height = cachedControllerHeight;
     }
 
-    private void ResolvePenetration(ref Vector3 position)
+    private void ResolvePenetration(ref Vector3 position, bool grounded)
     {
         EnsurePenetrationProbe();
         if (penetrationProbe == null)
@@ -874,7 +878,13 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
                     continue;
                 }
 
-                totalSeparation += direction * (distance + collisionSkin);
+                Vector3 separation = direction * (distance + collisionSkin);
+                if (grounded && direction.y >= GetGroundNormalThreshold())
+                {
+                    separation = Vector3.up * Mathf.Max(separation.y, 0f);
+                }
+
+                totalSeparation += separation;
                 separationCount++;
             }
 
@@ -1124,7 +1134,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         };
 
         TrySnapToGround(ref state, groundProbeDistance + groundSnapDistance + 0.5f);
-        ResolvePenetration(ref state.Position);
+        ResolvePenetration(ref state.Position, state.Grounded);
         FinalizeGroundState(ref state);
         return state;
     }
