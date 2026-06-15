@@ -19,7 +19,6 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private const float TerminalVelocity = -53f;
     private const float GroundStickVelocity = 0f;
-    private const float MaxCorrectionDistance = 3f;
 
     private struct InputCommand : INetworkSerializable
     {
@@ -137,6 +136,18 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private float remoteRotationLerp = 18f;
 
     [SerializeField]
+    private float ownerCorrectionHardSnapDistance = 8f;
+
+    [SerializeField]
+    private float ownerCorrectionOffsetMax = 3f;
+
+    [SerializeField]
+    private float ownerCorrectionDecay = 10f;
+
+    [SerializeField]
+    private float serverRemoteVisualSmoothTime = 0.06f;
+
+    [SerializeField]
     private LayerMask collisionLayers = Physics.DefaultRaycastLayers;
 
     [SerializeField]
@@ -146,7 +157,6 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private KeyCode debugOverlayToggleKey = KeyCode.F3;
 
     private readonly List<InputCommand> pendingInputs = new List<InputCommand>();
-    private readonly Queue<InputCommand> receivedInputs = new Queue<InputCommand>();
     private readonly Collider[] overlapResults = new Collider[16];
     private readonly NetworkVariable<MotorState> authoritativeState = new NetworkVariable<MotorState>(
         new MotorState(),
@@ -160,11 +170,14 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private Transform leftFootBone;
     private Transform rightFootBone;
     private Vector3 initialVisualRootLocalPosition;
+    private Quaternion initialVisualRootLocalRotation = Quaternion.identity;
     private Vector3 ownerRenderPositionVelocity;
     private Vector3 ownerVisualCorrectionOffset;
+    private Vector3 serverRemoteVisualRootVelocity;
     private Vector3 sampledMoveInput;
     private Vector3 remoteRenderPositionVelocity;
     private InputCommand latestServerInput;
+    private InputCommand latestReceivedServerInput;
     private MotorState predictedState;
     private MotorState serverState;
     private MotorState remoteVisualState;
@@ -175,6 +188,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private float lastReconciliationRotationError;
     private uint nextInputSequence;
     private uint latestQueuedServerSequence;
+    private uint latestConsumedServerSequence;
     private uint jumpRequestSequence;
     private int jumpResendTicksRemaining;
     private bool jumpAwaitingServerConsume;
@@ -228,6 +242,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         if (visualRoot != null)
         {
             initialVisualRootLocalPosition = visualRoot.localPosition;
+            initialVisualRootLocalRotation = visualRoot.localRotation;
         }
 
         CacheFootBones();
@@ -309,6 +324,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
             {
                 serverTickAccumulator += deltaTime;
                 StepServerTicks();
+                ApplyServerRemoteVisualSmoothing(deltaTime);
             }
         }
         else if (UsesPrediction)
@@ -385,7 +401,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
         while (serverTickAccumulator >= tickInterval && steps < 4)
         {
-            ConsumeLatestServerInput();
+            ConsumeLatestServerInputState();
             SimulateTick(ref serverState, latestServerInput, tickInterval);
             ApplyStateToTransform(serverState);
             PublishAuthoritativeState();
@@ -432,15 +448,25 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         }
 
         latestQueuedServerSequence = command.Sequence;
-        receivedInputs.Enqueue(command);
+        latestReceivedServerInput = command;
     }
 
-    private void ConsumeLatestServerInput()
+    private void ConsumeLatestServerInputState()
     {
-        while (receivedInputs.Count > 0)
+        if (latestReceivedServerInput.Sequence > latestConsumedServerSequence)
         {
-            latestServerInput = receivedInputs.Dequeue();
+            latestServerInput = latestReceivedServerInput;
+            latestConsumedServerSequence = latestReceivedServerInput.Sequence;
+            return;
         }
+
+        latestServerInput = new InputCommand
+        {
+            Sequence = latestServerInput.Sequence,
+            MoveDirection = latestServerInput.MoveDirection,
+            SprintHeld = latestServerInput.SprintHeld,
+            JumpPressed = false
+        };
     }
 
     private void SimulateTick(ref MotorState state, InputCommand command, float deltaTime)
@@ -950,8 +976,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private void ApplyOwnerReconciliation(MotorState newState)
     {
         Vector3 previousRenderTarget = GetPredictedRenderPosition();
-        lastReconciliationPositionError = Vector3.Distance(predictedState.Position, newState.Position);
-        lastReconciliationRotationError = Mathf.Abs(Mathf.DeltaAngle(predictedState.Yaw, newState.Yaw));
+        float previousYaw = predictedState.Yaw;
 
         predictedState = newState;
         TrimAcknowledgedInputs(newState.LastProcessedInputSequence);
@@ -962,7 +987,9 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         }
 
         Vector3 correctedRenderTarget = GetPredictedRenderPosition();
-        if (lastReconciliationPositionError > MaxCorrectionDistance)
+        lastReconciliationPositionError = Vector3.Distance(previousRenderTarget, correctedRenderTarget);
+        lastReconciliationRotationError = Mathf.Abs(Mathf.DeltaAngle(previousYaw, predictedState.Yaw));
+        if (lastReconciliationPositionError > ownerCorrectionHardSnapDistance)
         {
             ownerVisualCorrectionOffset = Vector3.zero;
             ownerRenderPositionVelocity = Vector3.zero;
@@ -970,7 +997,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         else
         {
             ownerVisualCorrectionOffset += previousRenderTarget - correctedRenderTarget;
-            ownerVisualCorrectionOffset = Vector3.ClampMagnitude(ownerVisualCorrectionOffset, 0.35f);
+            ownerVisualCorrectionOffset = Vector3.ClampMagnitude(ownerVisualCorrectionOffset, ownerCorrectionOffsetMax);
         }
 
         if (jumpAwaitingServerConsume && jumpRequestSequence > 0 && newState.LastConsumedJumpSequence >= jumpRequestSequence)
@@ -991,11 +1018,11 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private void ApplyPredictedStateToTransform(float deltaTime)
     {
-        float offsetDecay = 1f - Mathf.Exp(-18f * deltaTime);
+        float offsetDecay = 1f - Mathf.Exp(-ownerCorrectionDecay * deltaTime);
         ownerVisualCorrectionOffset = Vector3.Lerp(ownerVisualCorrectionOffset, Vector3.zero, offsetDecay);
         Vector3 targetPosition = GetPredictedRenderPosition() + ownerVisualCorrectionOffset;
 
-        if (lastReconciliationPositionError > MaxCorrectionDistance)
+        if (lastReconciliationPositionError > ownerCorrectionHardSnapDistance)
         {
             transform.position = targetPosition;
             ownerRenderPositionVelocity = Vector3.zero;
@@ -1014,6 +1041,34 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
         Quaternion targetRotation = Quaternion.Euler(0f, predictedState.Yaw, 0f);
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-36f * deltaTime));
+    }
+
+    private void ApplyServerRemoteVisualSmoothing(float deltaTime)
+    {
+        if (visualRoot == null || deltaTime <= 0f)
+        {
+            return;
+        }
+
+        Vector3 targetPosition = transform.TransformPoint(initialVisualRootLocalPosition);
+        Quaternion targetRotation = transform.rotation * initialVisualRootLocalRotation;
+        if (Vector3.Distance(visualRoot.position, targetPosition) > ownerCorrectionHardSnapDistance)
+        {
+            visualRoot.position = targetPosition;
+            visualRoot.rotation = targetRotation;
+            serverRemoteVisualRootVelocity = Vector3.zero;
+            return;
+        }
+
+        visualRoot.position = Vector3.SmoothDamp(
+            visualRoot.position,
+            targetPosition,
+            ref serverRemoteVisualRootVelocity,
+            Mathf.Max(0.001f, serverRemoteVisualSmoothTime),
+            Mathf.Infinity,
+            deltaTime);
+        float rotationBlend = 1f - Mathf.Exp(-(1f / Mathf.Max(0.001f, serverRemoteVisualSmoothTime)) * deltaTime);
+        visualRoot.rotation = Quaternion.Slerp(visualRoot.rotation, targetRotation, rotationBlend);
     }
 
     private Vector3 GetPredictedRenderPosition()

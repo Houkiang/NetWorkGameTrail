@@ -90,12 +90,22 @@ public class ConnectionApprovalHandler : MonoBehaviour
 
     private void HandleClientConnected(ulong clientId)
     {
+        if (networkManager == null || !networkManager.IsServer)
+        {
+            return;
+        }
+
         reservedClientIds.Remove(clientId);
         Debug.Log($"Client connected: {clientId}. Active players: {GetActivePlayerCount()}/{maxPlayers}");
     }
 
     private void HandleClientDisconnected(ulong clientId)
     {
+        if (networkManager == null || !networkManager.IsServer)
+        {
+            return;
+        }
+
         reservedClientIds.Remove(clientId);
         string reason = networkManager != null ? networkManager.DisconnectReason : string.Empty;
         Debug.Log(string.IsNullOrWhiteSpace(reason)
@@ -105,7 +115,7 @@ public class ConnectionApprovalHandler : MonoBehaviour
 
     private int GetActivePlayerCount()
     {
-        if (networkManager == null || networkManager.ConnectedClientsIds == null)
+        if (networkManager == null || !networkManager.IsServer)
         {
             return 0;
         }

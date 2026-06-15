@@ -224,6 +224,31 @@ MonoBehaviour:
 
     Client:
     connect to another host'
+  menuTitleText: Settings
+  gameplayTabLabel: Gameplay Help
+  hostTabLabel: Create Host
+  serverTabLabel: Create Server
+  clientTabLabel: Create Client
+  statusTabLabel: Connection Status
+  hostShareHintText: Share the LAN IP above with clients on the same network.
+  serverDescriptionText: Visual server mode keeps a local observer window and debug
+    UI, but does not spawn a local player.
+  clientDescriptionText: Enter the host IP and matching port before starting a client
+    connection.
+  statusDescriptionText: Review the current network mode and connection details here.
+    You can also disconnect from this page.
+  hostIpLabelText: Host IP
+  portLabelText: Port
+  listenAddressLabelText: Listen Address
+  startHostButtonText: Start Host
+  startServerButtonText: Start Server
+  startClientButtonText: Start Client
+  shutdownButtonText: Shutdown / Disconnect
+  closeButtonText: Close
+  lanPrefixText: 'LAN IP:'
+  clientAddressPrefixText: 'Client Address:'
+  listenAddressPrefixText: 'Listen Address:'
+  portPrefixText: 'Port:'
   windowSize: {x: 1600, y: 900}
   outerPadding: 30
   bodySpacing: 30
@@ -251,6 +276,8 @@ MonoBehaviour:
   visibleOnStart: 0
   panelWidth: 800
   panelMargin: 16
+  overlayTitleText: Debug Overlay
+  overlaySubtitleText: F1 Toggle / Esc Settings
   titleFontSize: 60
   subtitleFontSize: 20
   sectionTitleFontSize: 40
