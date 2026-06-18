@@ -25,6 +25,9 @@ public class LocalPlayerCameraController : NetworkBehaviour
     private float initialPitch = 12f;
 
     [SerializeField]
+    private float cameraTargetHeight = 1.45f;
+
+    [SerializeField]
     private bool invertY;
 
     private Transform cameraTarget;
@@ -84,7 +87,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
     {
         if (cameraTarget == null)
         {
-            cameraTarget = FindCameraTarget();
+            cameraTarget = FindOrCreateCameraTarget();
         }
 
         if (cameraTarget == null)
@@ -146,13 +149,31 @@ public class LocalPlayerCameraController : NetworkBehaviour
         for (int i = 0; i < children.Length; i++)
         {
             Transform child = children[i];
-            if (child.CompareTag("CinemachineTarget"))
+            if (child.CompareTag("CinemachineTarget") || child.name == "CinemachineCameraTarget")
             {
                 return child;
             }
         }
 
         return null;
+    }
+
+    private Transform FindOrCreateCameraTarget()
+    {
+        Transform existingTarget = FindCameraTarget();
+        if (existingTarget != null)
+        {
+            return existingTarget;
+        }
+
+        GameObject targetObject = new GameObject("CinemachineCameraTarget");
+        targetObject.tag = "CinemachineTarget";
+
+        Transform target = targetObject.transform;
+        target.SetParent(transform, false);
+        target.localPosition = Vector3.up * Mathf.Max(0f, cameraTargetHeight);
+        target.localRotation = Quaternion.identity;
+        return target;
     }
 
     private void CleanupSpawnedCameraObjects()

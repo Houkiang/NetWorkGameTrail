@@ -13,6 +13,8 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 {
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
+    private static readonly int MoveXHash = Animator.StringToHash("MoveX");
+    private static readonly int MoveYHash = Animator.StringToHash("MoveY");
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
     private static readonly int JumpHash = Animator.StringToHash("Jump");
     private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
@@ -24,6 +26,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     {
         public uint Sequence;
         public Vector3 MoveDirection;
+        public float AimYaw;
         public bool SprintHeld;
         public bool JumpPressed;
 
@@ -31,6 +34,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         {
             serializer.SerializeValue(ref Sequence);
             serializer.SerializeValue(ref MoveDirection);
+            serializer.SerializeValue(ref AimYaw);
             serializer.SerializeValue(ref SprintHeld);
             serializer.SerializeValue(ref JumpPressed);
         }
@@ -175,6 +179,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private Vector3 ownerVisualCorrectionOffset;
     private Vector3 serverRemoteVisualRootVelocity;
     private Vector3 sampledMoveInput;
+    private float sampledAimYaw;
     private Vector3 remoteRenderPositionVelocity;
     private InputCommand latestServerInput;
     private InputCommand latestReceivedServerInput;
@@ -184,6 +189,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private float localTickAccumulator;
     private float serverTickAccumulator;
     private float visualSpeed;
+    private Vector2 visualMoveInput;
     private float lastReconciliationPositionError;
     private float lastReconciliationRotationError;
     private uint nextInputSequence;
@@ -354,6 +360,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         Vector2 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
         input = Vector2.ClampMagnitude(input, 1f);
         sampledMoveInput = ResolveMoveDirection(input);
+        sampledAimYaw = ResolveAimYaw();
         sampledSprintHeld = Input.GetKey(KeyCode.LeftShift);
 
         if (Input.GetKeyDown(KeyCode.Space))
@@ -368,6 +375,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         {
             Sequence = ++nextInputSequence,
             MoveDirection = sampledMoveInput,
+            AimYaw = sampledAimYaw,
             SprintHeld = sampledSprintHeld,
             JumpPressed = jumpQueued
         };
@@ -417,6 +425,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         {
             Sequence = ++nextInputSequence,
             MoveDirection = sampledMoveInput,
+            AimYaw = sampledAimYaw,
             SprintHeld = sampledSprintHeld,
             JumpPressed = jumpPressed
         };
@@ -464,6 +473,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         {
             Sequence = latestServerInput.Sequence,
             MoveDirection = latestServerInput.MoveDirection,
+            AimYaw = latestServerInput.AimYaw,
             SprintHeld = latestServerInput.SprintHeld,
             JumpPressed = false
         };
@@ -504,11 +514,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
             state.PlanarVelocity = Vector3.zero;
         }
 
-        if (desiredDirection.sqrMagnitude > 0.0001f)
-        {
-            float targetYaw = Mathf.Atan2(desiredDirection.x, desiredDirection.z) * Mathf.Rad2Deg;
-            state.Yaw = Mathf.MoveTowardsAngle(state.Yaw, targetYaw, rotationSpeed * deltaTime);
-        }
+        state.Yaw = Mathf.MoveTowardsAngle(state.Yaw, command.AimYaw, rotationSpeed * deltaTime);
 
         UpdateGroundAndVerticalState(ref state, command, deltaTime);
 
@@ -1115,6 +1121,14 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         characterAnimator.SetFloat(SpeedHash, visualSpeed);
 
         MotorState animState = GetAnimationState();
+        Vector3 localVelocity = Quaternion.Euler(0f, -animState.Yaw, 0f) * animState.PlanarVelocity;
+        float animationSpeedRange = Mathf.Max(sprintSpeed, 0.001f);
+        Vector2 targetMoveInput = Vector2.ClampMagnitude(
+            new Vector2(localVelocity.x, localVelocity.z) / animationSpeedRange,
+            1f);
+        visualMoveInput = Vector2.MoveTowards(visualMoveInput, targetMoveInput, 8f * deltaTime);
+        characterAnimator.SetFloat(MoveXHash, visualMoveInput.x);
+        characterAnimator.SetFloat(MoveYHash, visualMoveInput.y);
         characterAnimator.SetBool(GroundedHash, animState.Grounded);
         characterAnimator.SetBool(JumpHash, animState.Jump);
         characterAnimator.SetBool(FreeFallHash, animState.FreeFall);
@@ -1172,6 +1186,25 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         return moveDirection.sqrMagnitude > 0.0001f ? moveDirection.normalized : Vector3.zero;
     }
 
+    private float ResolveAimYaw()
+    {
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            return transform.eulerAngles.y;
+        }
+
+        Vector3 forward = mainCamera.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.0001f)
+        {
+            return transform.eulerAngles.y;
+        }
+
+        forward.Normalize();
+        return Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+    }
+
     private MotorState CreateInitialState(Vector3 position, float yaw)
     {
         MotorState state = new MotorState
@@ -1209,6 +1242,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         lines.Add($"Predicted Pos: {FormatVector3(predictedState.Position)}");
         lines.Add($"Authoritative Pos: {FormatVector3(authoritativeState.Value.Position)}");
         lines.Add($"Planar Speed: {GetAnimationSpeedSource():F2}");
+        lines.Add($"Move Blend: {visualMoveInput.x:F2}, {visualMoveInput.y:F2}");
         lines.Add($"Pending Inputs: {pendingInputs.Count}");
         lines.Add($"Reconcile Error: pos {lastReconciliationPositionError:F3} | rot {lastReconciliationRotationError:F1}");
         lines.Add($"Grounded: {GetAnimationState().Grounded}");
