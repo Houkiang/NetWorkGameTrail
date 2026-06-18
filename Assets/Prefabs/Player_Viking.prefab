@@ -1014,9 +1014,9 @@ SkinnedMeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -4073086833388653560, guid: 5eb0d9043d7f88a4dbf4ad3606def6be, type: 3}
-  - {fileID: 9175301115627011995, guid: 5eb0d9043d7f88a4dbf4ad3606def6be, type: 3}
-  - {fileID: 2100000, guid: a7f9f44bd34005b4e85de791d9daeac1, type: 2}
+  - {fileID: 2100000, guid: 44e95b29e1db4669a3d2b89a66c5892f, type: 2}
+  - {fileID: 2100000, guid: 2154ce2818124ca59107dc9e8090d20a, type: 2}
+  - {fileID: 2100000, guid: a7ecee044ea8497cb2eff869e316b0d5, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2798,7 +2798,7 @@ Animator:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6669435433835551607}
   m_Enabled: 1
-  m_Avatar: {fileID: 0}
+  m_Avatar: {fileID: 9000000, guid: 6bbdf74943880a145a2b805eacf25f96, type: 3}
   m_Controller: {fileID: 9100000, guid: 1e9ea94003fcc584ebbefc40d6930163, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
@@ -3475,7 +3475,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: d459f8a9670b0654795da2eb05b970da, type: 2}
+  - {fileID: 2100000, guid: 9ad310d0728b465d96f5eac6a9933f10, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
