@@ -9,6 +9,10 @@ using UnityEngine;
 public class PlayerCombatController : NetworkBehaviour
 {
     private const float DefaultFireOriginHeight = 1.35f;
+    private const float DefaultMuzzleFxLifetime = 2f;
+    private const float DefaultImpactFxLifetime = 5f;
+    private const float DefaultTracerLifetime = 2f;
+    private const float DefaultFireAudioVolume = 1f;
 
     [SerializeField]
     private Transform fireOrigin;
@@ -61,6 +65,7 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         weaponController.MarkLocalShotFired(localTime);
+        PlayPredictedFireFeedback(weaponController.CurrentWeapon);
         RequestFireServerRpc(aimPoint);
         return true;
     }
@@ -108,11 +113,53 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         weaponController.MarkServerShotFired(serverTime);
-        ResolveServerShot(serverOrigin, shotVector.normalized, weapon);
+        Vector3 shotDirection = shotVector.normalized;
+        Vector3 traceEndPoint = serverOrigin + shotDirection * weapon.Range;
+        bool didHit = ResolveServerShot(serverOrigin, shotDirection, weapon, out Vector3 impactPoint, out Vector3 impactNormal);
+        if (didHit)
+        {
+            traceEndPoint = impactPoint;
+        }
+
+        BroadcastFireFeedbackClientRpc(serverOrigin, traceEndPoint, didHit, impactPoint, impactNormal);
     }
 
-    private void ResolveServerShot(Vector3 origin, Vector3 direction, WeaponDefinition weapon)
+    [ClientRpc]
+    private void BroadcastFireFeedbackClientRpc(
+        Vector3 origin,
+        Vector3 traceEndPoint,
+        bool didHit,
+        Vector3 impactPoint,
+        Vector3 impactNormal)
     {
+        WeaponDefinition weapon = weaponController != null ? weaponController.CurrentWeapon : null;
+        if (weapon == null)
+        {
+            return;
+        }
+
+        bool isLocalShooter = NetworkManager != null && OwnerClientId == NetworkManager.LocalClientId;
+        if (!isLocalShooter)
+        {
+            PlayShotPresentation(weapon, origin, traceEndPoint);
+        }
+
+        if (didHit)
+        {
+            PlayImpactPresentation(weapon, impactPoint, impactNormal);
+        }
+    }
+
+    private bool ResolveServerShot(
+        Vector3 origin,
+        Vector3 direction,
+        WeaponDefinition weapon,
+        out Vector3 impactPoint,
+        out Vector3 impactNormal)
+    {
+        impactPoint = origin + direction * weapon.Range;
+        impactNormal = -direction;
+
         RaycastHit[] hits = Physics.RaycastAll(
             origin,
             direction,
@@ -143,6 +190,8 @@ public class PlayerCombatController : NetworkBehaviour
 
             int damage = hitbox.ApplyDamageMultiplier(weapon.Damage);
             targetHealth.TakeDamageServer(damage, OwnerClientId);
+            impactPoint = hits[i].point;
+            impactNormal = hits[i].normal;
 
             if (logServerHits)
             {
@@ -152,8 +201,10 @@ public class PlayerCombatController : NetworkBehaviour
                     this);
             }
 
-            return;
+            return true;
         }
+
+        return false;
     }
 
     private Vector3 GetServerFireOrigin()
@@ -171,5 +222,86 @@ public class PlayerCombatController : NetworkBehaviour
     private static bool IsFinite(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private void PlayPredictedFireFeedback(WeaponDefinition weapon)
+    {
+        if (weapon == null)
+        {
+            return;
+        }
+
+        Vector3 origin = FireOrigin.position;
+        PlayShotPresentation(weapon, origin, origin + FireOrigin.forward * weapon.Range);
+    }
+
+    private void PlayShotPresentation(WeaponDefinition weapon, Vector3 origin, Vector3 traceEndPoint)
+    {
+        if (weapon == null)
+        {
+            return;
+        }
+
+        TryPlayMuzzleFlash(weapon);
+        TryPlayTracer(weapon, origin, traceEndPoint);
+        TryPlayFireAudio(weapon, origin);
+    }
+
+    private void PlayImpactPresentation(WeaponDefinition weapon, Vector3 impactPoint, Vector3 impactNormal)
+    {
+        if (weapon == null || weapon.ImpactPrefab == null)
+        {
+            return;
+        }
+
+        Quaternion impactRotation = impactNormal.sqrMagnitude > 0.0001f
+            ? Quaternion.LookRotation(impactNormal)
+            : Quaternion.identity;
+
+        GameObject impactInstance = Instantiate(weapon.ImpactPrefab, impactPoint, impactRotation);
+        Destroy(impactInstance, DefaultImpactFxLifetime);
+    }
+
+    private void TryPlayMuzzleFlash(WeaponDefinition weapon)
+    {
+        if (weapon == null || weapon.MuzzleFlashPrefab == null)
+        {
+            return;
+        }
+
+        Transform origin = FireOrigin;
+        GameObject muzzleInstance = Instantiate(
+            weapon.MuzzleFlashPrefab,
+            origin.position,
+            origin.rotation,
+            origin);
+
+        Destroy(muzzleInstance, DefaultMuzzleFxLifetime);
+    }
+
+    private void TryPlayTracer(WeaponDefinition weapon, Vector3 origin, Vector3 traceEndPoint)
+    {
+        if (weapon == null || weapon.TracerPrefab == null)
+        {
+            return;
+        }
+
+        Vector3 direction = traceEndPoint - origin;
+        Quaternion rotation = direction.sqrMagnitude > 0.0001f
+            ? Quaternion.LookRotation(direction.normalized)
+            : Quaternion.identity;
+
+        GameObject tracerInstance = Instantiate(weapon.TracerPrefab, origin, rotation);
+        Destroy(tracerInstance, DefaultTracerLifetime);
+    }
+
+    private static void TryPlayFireAudio(WeaponDefinition weapon, Vector3 origin)
+    {
+        if (weapon == null || weapon.FireAudioClip == null)
+        {
+            return;
+        }
+
+        AudioSource.PlayClipAtPoint(weapon.FireAudioClip, origin, DefaultFireAudioVolume);
     }
 }
