@@ -15,6 +15,12 @@ public class PlayerWeaponController : NetworkBehaviour
 
     public bool HasWeapon => currentWeapon != null;
 
+    public override void OnNetworkSpawn()
+    {
+        nextServerFireTime = 0d;
+        nextLocalFireTime = 0d;
+    }
+
     public bool CanFireServer(double serverTime)
     {
         return currentWeapon != null && serverTime >= nextServerFireTime;

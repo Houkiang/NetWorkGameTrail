@@ -245,6 +245,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   fireOrigin: {fileID: 0}
   fireKey: 323
+  logServerHits: 1
 --- !u!114 &7011223344556677004
 MonoBehaviour:
   m_ObjectHideFlags: 0
