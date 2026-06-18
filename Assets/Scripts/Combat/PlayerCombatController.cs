@@ -13,6 +13,10 @@ public class PlayerCombatController : NetworkBehaviour
     private const float DefaultImpactFxLifetime = 5f;
     private const float DefaultTracerLifetime = 2f;
     private const float DefaultFireAudioVolume = 1f;
+    private const float DefaultDebugTracerLifetime = 0.08f;
+    private const float DefaultDebugTracerWidth = 0.018f;
+
+    private static Material debugTracerMaterial;
 
     [SerializeField]
     private Transform fireOrigin;
@@ -22,6 +26,28 @@ public class PlayerCombatController : NetworkBehaviour
 
     [SerializeField]
     private bool logServerHits = true;
+
+    [SerializeField]
+    [Min(0.001f)]
+    private float muzzleOverlapRadius = 0.05f;
+
+    [Header("Debug Tracer")]
+    [SerializeField]
+    private bool showDebugTracers = true;
+
+    [SerializeField]
+    private Color predictedTracerColor = new Color(0.22f, 0.85f, 1f, 0.92f);
+
+    [SerializeField]
+    private Color confirmedTracerColor = new Color(1f, 0.85f, 0.24f, 0.96f);
+
+    [SerializeField]
+    [Min(0.001f)]
+    private float debugTracerWidth = DefaultDebugTracerWidth;
+
+    [SerializeField]
+    [Min(0.01f)]
+    private float debugTracerLifetime = DefaultDebugTracerLifetime;
 
     private PlayerWeaponController weaponController;
     private PlayerHealth health;
@@ -65,7 +91,7 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         weaponController.MarkLocalShotFired(localTime);
-        PlayPredictedFireFeedback(weaponController.CurrentWeapon);
+        PlayPredictedFireFeedback(weaponController.CurrentWeapon, aimPoint);
         RequestFireServerRpc(aimPoint);
         return true;
     }
@@ -81,6 +107,26 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         Ray aimRay = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        RaycastHit[] hits = Physics.RaycastAll(
+            aimRay,
+            weapon.Range,
+            weapon.HitMask,
+            QueryTriggerInteraction.Collide);
+
+        Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hitCollider = hits[i].collider;
+            if (IsSelfCollider(hitCollider))
+            {
+                continue;
+            }
+
+            aimPoint = hits[i].point;
+            return IsFinite(aimPoint);
+        }
+
         aimPoint = aimRay.origin + aimRay.direction * weapon.Range;
         return IsFinite(aimPoint);
     }
@@ -141,7 +187,11 @@ public class PlayerCombatController : NetworkBehaviour
         bool isLocalShooter = NetworkManager != null && OwnerClientId == NetworkManager.LocalClientId;
         if (!isLocalShooter)
         {
-            PlayShotPresentation(weapon, origin, traceEndPoint);
+            PlayShotPresentation(weapon, origin, traceEndPoint, playAudioAndMuzzle: true, tracerColorOverride: confirmedTracerColor);
+        }
+        else if (showDebugTracers)
+        {
+            TryPlayDebugTracer(origin, traceEndPoint, confirmedTracerColor, debugTracerLifetime);
         }
 
         if (didHit)
@@ -160,6 +210,11 @@ public class PlayerCombatController : NetworkBehaviour
         impactPoint = origin + direction * weapon.Range;
         impactNormal = -direction;
 
+        if (TryResolveMuzzleOverlap(origin, direction, weapon, out impactPoint, out impactNormal))
+        {
+            return true;
+        }
+
         RaycastHit[] hits = Physics.RaycastAll(
             origin,
             direction,
@@ -172,31 +227,88 @@ public class PlayerCombatController : NetworkBehaviour
         for (int i = 0; i < hits.Length; i++)
         {
             Collider hitCollider = hits[i].collider;
-            if (hitCollider == null || hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform))
+            if (IsSelfCollider(hitCollider))
             {
                 continue;
             }
+
+            impactPoint = hits[i].point;
+            impactNormal = hits[i].normal;
 
             PlayerHitbox hitbox = hitCollider.GetComponentInParent<PlayerHitbox>();
             if (hitbox == null || !hitbox.TryGetOwnerHealth(out PlayerHealth targetHealth))
             {
-                continue;
+                return true;
             }
 
             if (targetHealth == health || !targetHealth.CanTakeDamageFrom(OwnerClientId))
             {
-                continue;
+                return true;
             }
 
             int damage = hitbox.ApplyDamageMultiplier(weapon.Damage);
             targetHealth.TakeDamageServer(damage, OwnerClientId);
-            impactPoint = hits[i].point;
-            impactNormal = hits[i].normal;
 
             if (logServerHits)
             {
                 Debug.Log(
                     $"[Combat] Client {OwnerClientId} hit Client {targetHealth.OwnerClientId} " +
+                    $"for {damage}. Health: {targetHealth.CurrentHealth}/{targetHealth.MaxHealth}",
+                    this);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryResolveMuzzleOverlap(
+        Vector3 origin,
+        Vector3 direction,
+        WeaponDefinition weapon,
+        out Vector3 impactPoint,
+        out Vector3 impactNormal)
+    {
+        impactPoint = origin;
+        impactNormal = -direction;
+
+        Collider[] overlaps = Physics.OverlapSphere(
+            origin,
+            muzzleOverlapRadius,
+            weapon.HitMask,
+            QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < overlaps.Length; i++)
+        {
+            Collider overlapCollider = overlaps[i];
+            if (IsSelfCollider(overlapCollider))
+            {
+                continue;
+            }
+
+            Vector3 closestPoint = overlapCollider.ClosestPoint(origin);
+            impactPoint = (closestPoint - origin).sqrMagnitude > 0.000001f ? closestPoint : origin;
+            impactNormal = -direction;
+
+            PlayerHitbox hitbox = overlapCollider.GetComponentInParent<PlayerHitbox>();
+            if (hitbox == null || !hitbox.TryGetOwnerHealth(out PlayerHealth targetHealth))
+            {
+                return true;
+            }
+
+            if (targetHealth == health || !targetHealth.CanTakeDamageFrom(OwnerClientId))
+            {
+                return true;
+            }
+
+            int damage = hitbox.ApplyDamageMultiplier(weapon.Damage);
+            targetHealth.TakeDamageServer(damage, OwnerClientId);
+
+            if (logServerHits)
+            {
+                Debug.Log(
+                    $"[Combat] Client {OwnerClientId} overlap-hit Client {targetHealth.OwnerClientId} " +
                     $"for {damage}. Health: {targetHealth.CurrentHealth}/{targetHealth.MaxHealth}",
                     this);
             }
@@ -214,6 +326,13 @@ public class PlayerCombatController : NetworkBehaviour
             : transform.position + Vector3.up * DefaultFireOriginHeight;
     }
 
+    private bool IsSelfCollider(Collider collider)
+    {
+        return collider == null
+            || collider.transform == transform
+            || collider.transform.IsChildOf(transform);
+    }
+
     private static bool IsFinite(Vector3 value)
     {
         return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
@@ -224,7 +343,7 @@ public class PlayerCombatController : NetworkBehaviour
         return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
-    private void PlayPredictedFireFeedback(WeaponDefinition weapon)
+    private void PlayPredictedFireFeedback(WeaponDefinition weapon, Vector3 aimPoint)
     {
         if (weapon == null)
         {
@@ -232,19 +351,32 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         Vector3 origin = FireOrigin.position;
-        PlayShotPresentation(weapon, origin, origin + FireOrigin.forward * weapon.Range);
+        Vector3 direction = aimPoint - origin;
+        Vector3 traceEndPoint = direction.sqrMagnitude > 0.0001f
+            ? origin + direction.normalized * weapon.Range
+            : origin + FireOrigin.forward * weapon.Range;
+        PlayShotPresentation(weapon, origin, traceEndPoint, playAudioAndMuzzle: true, tracerColorOverride: predictedTracerColor);
     }
 
-    private void PlayShotPresentation(WeaponDefinition weapon, Vector3 origin, Vector3 traceEndPoint)
+    private void PlayShotPresentation(
+        WeaponDefinition weapon,
+        Vector3 origin,
+        Vector3 traceEndPoint,
+        bool playAudioAndMuzzle,
+        Color tracerColorOverride)
     {
         if (weapon == null)
         {
             return;
         }
 
-        TryPlayMuzzleFlash(weapon);
-        TryPlayTracer(weapon, origin, traceEndPoint);
-        TryPlayFireAudio(weapon, origin);
+        if (playAudioAndMuzzle)
+        {
+            TryPlayMuzzleFlash(weapon);
+            TryPlayFireAudio(weapon, origin);
+        }
+
+        TryPlayTracer(weapon, origin, traceEndPoint, tracerColorOverride);
     }
 
     private void PlayImpactPresentation(WeaponDefinition weapon, Vector3 impactPoint, Vector3 impactNormal)
@@ -279,8 +411,13 @@ public class PlayerCombatController : NetworkBehaviour
         Destroy(muzzleInstance, DefaultMuzzleFxLifetime);
     }
 
-    private void TryPlayTracer(WeaponDefinition weapon, Vector3 origin, Vector3 traceEndPoint)
+    private void TryPlayTracer(WeaponDefinition weapon, Vector3 origin, Vector3 traceEndPoint, Color tracerColorOverride)
     {
+        if (showDebugTracers)
+        {
+            TryPlayDebugTracer(origin, traceEndPoint, tracerColorOverride, debugTracerLifetime);
+        }
+
         if (weapon == null || weapon.TracerPrefab == null)
         {
             return;
@@ -303,5 +440,65 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         AudioSource.PlayClipAtPoint(weapon.FireAudioClip, origin, DefaultFireAudioVolume);
+    }
+
+    private void TryPlayDebugTracer(Vector3 origin, Vector3 traceEndPoint, Color color, float lifetime)
+    {
+        if ((traceEndPoint - origin).sqrMagnitude <= 0.0001f)
+        {
+            return;
+        }
+
+        Material tracerMaterial = GetDebugTracerMaterial();
+        if (tracerMaterial == null)
+        {
+            return;
+        }
+
+        GameObject tracerObject = new GameObject("DebugTracer", typeof(LineRenderer));
+        LineRenderer lineRenderer = tracerObject.GetComponent<LineRenderer>();
+        lineRenderer.sharedMaterial = tracerMaterial;
+        lineRenderer.useWorldSpace = true;
+        lineRenderer.textureMode = LineTextureMode.Stretch;
+        lineRenderer.alignment = LineAlignment.View;
+        lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lineRenderer.receiveShadows = false;
+        lineRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+        lineRenderer.widthMultiplier = debugTracerWidth;
+        lineRenderer.numCapVertices = 2;
+        lineRenderer.positionCount = 2;
+        lineRenderer.SetPosition(0, origin);
+        lineRenderer.SetPosition(1, traceEndPoint);
+        lineRenderer.startColor = color;
+        lineRenderer.endColor = color;
+
+        Destroy(tracerObject, lifetime);
+    }
+
+    private static Material GetDebugTracerMaterial()
+    {
+        if (debugTracerMaterial != null)
+        {
+            return debugTracerMaterial;
+        }
+
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+        {
+            shader = Shader.Find("Universal Render Pipeline/Unlit");
+        }
+
+        if (shader == null)
+        {
+            Debug.LogWarning("Debug tracer shader not found.");
+            return null;
+        }
+
+        debugTracerMaterial = new Material(shader)
+        {
+            name = "DebugTracerRuntimeMaterial"
+        };
+
+        return debugTracerMaterial;
     }
 }
