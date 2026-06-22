@@ -1,0 +1,237 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!319 &31900000
+AvatarMask:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: NewVikingTransformAvator
+  m_Mask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+  m_Elements:
+  - m_Path: 
+    m_Weight: 1
+  - m_Path: axe_shield
+    m_Weight: 0
+  - m_Path: axe_shield/axe
+    m_Weight: 0
+  - m_Path: axe_shield/shield
+    m_Weight: 0
+  - m_Path: Global_Con
+    m_Weight: 0
+  - m_Path: Rig_Group
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Pelv_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/L_Clav_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/L_Clav_Con/L_Hand_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/L_Clav_Con/L_Hand_Con/L_Arm_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/Neck_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/Neck_Con/Head_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/Neck_Con/Head_Con/Beard_01_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/Neck_Con/Head_Con/Beard_01_Con/Beard_02_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/Neck_Con/Head_Con/Beard_01_Con/Beard_02_Con/Beard_03_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/R_Clav_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/R_Clav_Con/R_Hand_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Center_Con/Spine_01_Con/Spine_02_Con/Spine_03_Con/Chest_Con/R_Clav_Con/R_Hand_Con/R_Arm_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/Eye_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Eye_Con/L_Eye_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Eye_Con/R_Eye_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Arm_Pol_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Foot_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Foot_Con/L_Inv_Ball_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Foot_Con/L_Inv_Toe_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Foot_Con/L_Leg_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Inv_Heel_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Inv_Heel_Jnt/L_Inv_Ball_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Inv_Heel_Jnt/L_Inv_Ball_Jnt/L_Inv_Toe_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Inv_Heel_Jnt/L_Inv_Ball_Jnt/L_Inv_Toe_Jnt/L_Inv_Ankle_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/L_Leg_Pol_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Arm_Pol_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Foot_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Foot_Con/R_Inv_Ball_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Foot_Con/R_Inv_Toe_Ik
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Foot_Con/R_Leg_ik
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Inv_Heel_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Inv_Heel_Jnt/R_Inv_Ball_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Inv_Heel_Jnt/R_Inv_Ball_Jnt/R_Inv_Toe_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Inv_Heel_Jnt/R_Inv_Ball_Jnt/R_Inv_Toe_Jnt/R_Inv_Ankle_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/R_Leg_Pol_Con
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/L_Hip_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/L_Hip_Jnt/L_Knee_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/L_Hip_Jnt/L_Knee_Jnt/L_Ankle_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/L_Hip_Jnt/L_Knee_Jnt/L_Ankle_Jnt/L_Ball_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/L_Hip_Jnt/L_Knee_Jnt/L_Ankle_Jnt/L_Ball_Jnt/L_Toe_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/R_Hip_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/R_Hip_Jnt/R_Knee_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/R_Hip_Jnt/R_Knee_Jnt/R_Ankle_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/R_Hip_Jnt/R_Knee_Jnt/R_Ankle_Jnt/R_Ball_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Pelv_Jnt/R_Hip_Jnt/R_Knee_Jnt/R_Ankle_Jnt/R_Ball_Jnt/R_Toe_Jnt
+    m_Weight: 0
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Index_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Index_01_Jnt/L_Index_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Index_01_Jnt/L_Index_02_Jnt/L_Index_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Little_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Little_01_Jnt/L_Little_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Little_01_Jnt/L_Little_02_Jnt/L_Little_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Middle_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Middle_01_Jnt/L_Middle_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Middle_01_Jnt/L_Middle_02_Jnt/L_Middle_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Ring_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Ring_01_Jnt/L_Ring_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Ring_01_Jnt/L_Ring_02_Jnt/L_Ring_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Thumb_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Thumb_01_Jnt/L_Thumb_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/L_Clav_Jnt/L_Shoulder_Jnt/L_Elbow_Jnt/L_Wrist_Jnt/L_Thumb_01_Jnt/L_Thumb_02_Jnt/L_Thumb_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/Beard_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/Beard_01_Jnt/Beard_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/Beard_01_Jnt/Beard_02_Jnt/Beard_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/L_Eye_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/L_Eyelid_Lower_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/L_Eyelid_Upper_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/R_Eye_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/R_Eyelid_Lower_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/Neck_Jnt/Head_Jnt/R_Eyelid_Upper_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Index_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Index_01_Jnt/R_Index_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Index_01_Jnt/R_Index_02_Jnt/R_Index_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Little_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Little_01_Jnt/R_Little_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Little_01_Jnt/R_Little_02_Jnt/R_Little_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Middle_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Middle_01_Jnt/R_Middle_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Middle_01_Jnt/R_Middle_02_Jnt/R_Middle_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Ring_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Ring_01_Jnt/R_Ring_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Ring_01_Jnt/R_Ring_02_Jnt/R_Ring_03_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Thumb_01_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Thumb_01_Jnt/R_Thumb_02_Jnt
+    m_Weight: 1
+  - m_Path: Rig_Group/Root_Jnt/Center_Jnt/Spine_01_Jnt/Spine_02_Jnt/Spine_03_Jnt/Chest_Jnt/R_Clav_Jnt/R_Shoulder_Jnt/R_Elbow_Jnt/R_Wrist_Jnt/R_Thumb_01_Jnt/R_Thumb_02_Jnt/R_Thumb_03_Jnt
+    m_Weight: 1
+  - m_Path: Viking_Model
+    m_Weight: 0

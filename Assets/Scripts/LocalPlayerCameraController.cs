@@ -99,7 +99,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
         CleanupSpawnedCameraObjects();
     }
 
-    private void OnDestroy()
+    public override void OnDestroy()
     {
         CleanupSpawnedCameraObjects();
     }

@@ -8,6 +8,8 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerHealth))]
 public class PlayerCombatController : NetworkBehaviour
 {
+    private static readonly int FireTriggerHash = Animator.StringToHash("Fire");
+
     private const float DefaultFireOriginHeight = 1.35f;
     private const float DefaultMuzzleFxLifetime = 2f;
     private const float DefaultImpactFxLifetime = 5f;
@@ -51,6 +53,7 @@ public class PlayerCombatController : NetworkBehaviour
 
     private PlayerWeaponController weaponController;
     private PlayerHealth health;
+    private Animator characterAnimator;
 
     public Transform FireOrigin => fireOrigin != null ? fireOrigin : transform;
 
@@ -60,6 +63,7 @@ public class PlayerCombatController : NetworkBehaviour
     {
         weaponController = GetComponent<PlayerWeaponController>();
         health = GetComponent<PlayerHealth>();
+        characterAnimator = GetComponentInChildren<Animator>(true);
     }
 
     private void Update()
@@ -161,13 +165,19 @@ public class PlayerCombatController : NetworkBehaviour
         weaponController.MarkServerShotFired(serverTime);
         Vector3 shotDirection = shotVector.normalized;
         Vector3 traceEndPoint = serverOrigin + shotDirection * weapon.Range;
-        bool didHit = ResolveServerShot(serverOrigin, shotDirection, weapon, out Vector3 impactPoint, out Vector3 impactNormal);
+        bool didHit = ResolveServerShot(
+            serverOrigin,
+            shotDirection,
+            weapon,
+            out Vector3 impactPoint,
+            out Vector3 impactNormal,
+            out bool hitPlayer);
         if (didHit)
         {
             traceEndPoint = impactPoint;
         }
 
-        BroadcastFireFeedbackClientRpc(serverOrigin, traceEndPoint, didHit, impactPoint, impactNormal);
+        BroadcastFireFeedbackClientRpc(serverOrigin, traceEndPoint, didHit, hitPlayer, impactPoint, impactNormal);
     }
 
     [ClientRpc]
@@ -175,6 +185,7 @@ public class PlayerCombatController : NetworkBehaviour
         Vector3 origin,
         Vector3 traceEndPoint,
         bool didHit,
+        bool hitPlayer,
         Vector3 impactPoint,
         Vector3 impactNormal)
     {
@@ -187,6 +198,7 @@ public class PlayerCombatController : NetworkBehaviour
         bool isLocalShooter = NetworkManager != null && OwnerClientId == NetworkManager.LocalClientId;
         if (!isLocalShooter)
         {
+            TryPlayFireAnimation();
             PlayShotPresentation(weapon, origin, traceEndPoint, playAudioAndMuzzle: true, tracerColorOverride: confirmedTracerColor);
         }
         else if (showDebugTracers)
@@ -196,7 +208,7 @@ public class PlayerCombatController : NetworkBehaviour
 
         if (didHit)
         {
-            PlayImpactPresentation(weapon, impactPoint, impactNormal);
+            PlayImpactPresentation(weapon, impactPoint, impactNormal, hitPlayer);
         }
     }
 
@@ -205,12 +217,14 @@ public class PlayerCombatController : NetworkBehaviour
         Vector3 direction,
         WeaponDefinition weapon,
         out Vector3 impactPoint,
-        out Vector3 impactNormal)
+        out Vector3 impactNormal,
+        out bool hitPlayer)
     {
         impactPoint = origin + direction * weapon.Range;
         impactNormal = -direction;
+        hitPlayer = false;
 
-        if (TryResolveMuzzleOverlap(origin, direction, weapon, out impactPoint, out impactNormal))
+        if (TryResolveMuzzleOverlap(origin, direction, weapon, out impactPoint, out impactNormal, out hitPlayer))
         {
             return true;
         }
@@ -238,16 +252,19 @@ public class PlayerCombatController : NetworkBehaviour
             PlayerHitbox hitbox = hitCollider.GetComponentInParent<PlayerHitbox>();
             if (hitbox == null || !hitbox.TryGetOwnerHealth(out PlayerHealth targetHealth))
             {
+                hitPlayer = false;
                 return true;
             }
 
             if (targetHealth == health || !targetHealth.CanTakeDamageFrom(OwnerClientId))
             {
+                hitPlayer = false;
                 return true;
             }
 
             int damage = hitbox.ApplyDamageMultiplier(weapon.Damage);
             targetHealth.TakeDamageServer(damage, OwnerClientId);
+            hitPlayer = true;
 
             if (logServerHits)
             {
@@ -268,10 +285,12 @@ public class PlayerCombatController : NetworkBehaviour
         Vector3 direction,
         WeaponDefinition weapon,
         out Vector3 impactPoint,
-        out Vector3 impactNormal)
+        out Vector3 impactNormal,
+        out bool hitPlayer)
     {
         impactPoint = origin;
         impactNormal = -direction;
+        hitPlayer = false;
 
         Collider[] overlaps = Physics.OverlapSphere(
             origin,
@@ -294,16 +313,19 @@ public class PlayerCombatController : NetworkBehaviour
             PlayerHitbox hitbox = overlapCollider.GetComponentInParent<PlayerHitbox>();
             if (hitbox == null || !hitbox.TryGetOwnerHealth(out PlayerHealth targetHealth))
             {
+                hitPlayer = false;
                 return true;
             }
 
             if (targetHealth == health || !targetHealth.CanTakeDamageFrom(OwnerClientId))
             {
+                hitPlayer = false;
                 return true;
             }
 
             int damage = hitbox.ApplyDamageMultiplier(weapon.Damage);
             targetHealth.TakeDamageServer(damage, OwnerClientId);
+            hitPlayer = true;
 
             if (logServerHits)
             {
@@ -350,6 +372,8 @@ public class PlayerCombatController : NetworkBehaviour
             return;
         }
 
+        TryPlayFireAnimation();
+
         Vector3 origin = FireOrigin.position;
         Vector3 direction = aimPoint - origin;
         Vector3 traceEndPoint = direction.sqrMagnitude > 0.0001f
@@ -379,9 +403,15 @@ public class PlayerCombatController : NetworkBehaviour
         TryPlayTracer(weapon, origin, traceEndPoint, tracerColorOverride);
     }
 
-    private void PlayImpactPresentation(WeaponDefinition weapon, Vector3 impactPoint, Vector3 impactNormal)
+    private void PlayImpactPresentation(WeaponDefinition weapon, Vector3 impactPoint, Vector3 impactNormal, bool hitPlayer)
     {
-        if (weapon == null || weapon.ImpactPrefab == null)
+        if (weapon == null)
+        {
+            return;
+        }
+
+        GameObject impactPrefab = hitPlayer ? weapon.PlayerImpactPrefab : weapon.ImpactPrefab;
+        if (impactPrefab == null)
         {
             return;
         }
@@ -390,7 +420,7 @@ public class PlayerCombatController : NetworkBehaviour
             ? Quaternion.LookRotation(impactNormal)
             : Quaternion.identity;
 
-        GameObject impactInstance = Instantiate(weapon.ImpactPrefab, impactPoint, impactRotation);
+        GameObject impactInstance = Instantiate(impactPrefab, impactPoint, impactRotation);
         Destroy(impactInstance, DefaultImpactFxLifetime);
     }
 
@@ -440,6 +470,17 @@ public class PlayerCombatController : NetworkBehaviour
         }
 
         AudioSource.PlayClipAtPoint(weapon.FireAudioClip, origin, DefaultFireAudioVolume);
+    }
+
+    private void TryPlayFireAnimation()
+    {
+        if (characterAnimator == null)
+        {
+            return;
+        }
+
+        characterAnimator.ResetTrigger(FireTriggerHash);
+        characterAnimator.SetTrigger(FireTriggerHash);
     }
 
     private void TryPlayDebugTracer(Vector3 origin, Vector3 traceEndPoint, Color color, float lifetime)

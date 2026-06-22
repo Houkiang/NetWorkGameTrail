@@ -3278,6 +3278,10 @@ MonoBehaviour:
   initialPitch: 12
   cameraTargetHeight: 1.45
   invertY: 0
+  crosshairColor: {r: 1, g: 1, b: 1, a: 0.92}
+  crosshairThickness: 3
+  crosshairLength: 10
+  crosshairGap: 6
 --- !u!114 &-2431327200308125564
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3378,6 +3382,12 @@ MonoBehaviour:
   fireOrigin: {fileID: 1041328561150240825}
   fireKey: 323
   logServerHits: 1
+  muzzleOverlapRadius: 0.05
+  showDebugTracers: 1
+  predictedTracerColor: {r: 0.22, g: 0.85, b: 1, a: 0.92}
+  confirmedTracerColor: {r: 1, g: 0.85, b: 0.24, a: 0.96}
+  debugTracerWidth: 0.018
+  debugTracerLifetime: 0.08
 --- !u!114 &-972637963776958293
 MonoBehaviour:
   m_ObjectHideFlags: 0

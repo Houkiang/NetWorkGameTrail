@@ -26,6 +26,9 @@ public class WeaponDefinition : ScriptableObject
     private GameObject impactPrefab;
 
     [SerializeField]
+    private GameObject playerImpactPrefab;
+
+    [SerializeField]
     private GameObject tracerPrefab;
 
     [SerializeField]
@@ -46,6 +49,8 @@ public class WeaponDefinition : ScriptableObject
     public GameObject MuzzleFlashPrefab => muzzleFlashPrefab;
 
     public GameObject ImpactPrefab => impactPrefab;
+
+    public GameObject PlayerImpactPrefab => playerImpactPrefab != null ? playerImpactPrefab : impactPrefab;
 
     public GameObject TracerPrefab => tracerPrefab;
 

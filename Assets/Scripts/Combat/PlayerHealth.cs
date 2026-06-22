@@ -5,6 +5,8 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public class PlayerHealth : NetworkBehaviour
 {
+    private static readonly int HitTriggerHash = Animator.StringToHash("Hit");
+
     [SerializeField]
     private int maxHealth = 100;
 
@@ -20,6 +22,8 @@ public class PlayerHealth : NetworkBehaviour
         false,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
+
+    private Animator characterAnimator;
 
     public int MaxHealth => maxHealth;
 
@@ -39,6 +43,11 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    private void Awake()
+    {
+        characterAnimator = GetComponentInChildren<Animator>(true);
+    }
+
     public bool CanTakeDamageFrom(ulong attackerClientId)
     {
         return IsServer && IsAlive && attackerClientId != OwnerClientId;
@@ -52,7 +61,13 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         int clampedAmount = Mathf.Max(0, amount);
+        if (clampedAmount <= 0)
+        {
+            return;
+        }
+
         currentHealth.Value = Mathf.Max(0, currentHealth.Value - clampedAmount);
+        PlayHitFeedbackClientRpc();
 
         if (currentHealth.Value <= 0)
         {
@@ -80,6 +95,23 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         isDead.Value = dead;
+    }
+
+    [ClientRpc]
+    private void PlayHitFeedbackClientRpc()
+    {
+        if (characterAnimator == null)
+        {
+            characterAnimator = GetComponentInChildren<Animator>(true);
+        }
+
+        if (characterAnimator == null)
+        {
+            return;
+        }
+
+        characterAnimator.ResetTrigger(HitTriggerHash);
+        characterAnimator.SetTrigger(HitTriggerHash);
     }
 
     private void OnValidate()
