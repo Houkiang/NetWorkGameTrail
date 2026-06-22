@@ -9,6 +9,8 @@ public class PlayerHitbox : MonoBehaviour
     [SerializeField]
     private float damageMultiplier = 1f;
 
+    private Collider[] cachedColliders;
+
     public PlayerHealth OwnerHealth => ownerHealth;
 
     public float DamageMultiplier => damageMultiplier;
@@ -19,6 +21,8 @@ public class PlayerHitbox : MonoBehaviour
         {
             ownerHealth = GetComponentInParent<PlayerHealth>();
         }
+
+        CacheColliders();
     }
 
     public bool TryGetOwnerHealth(out PlayerHealth health)
@@ -35,6 +39,31 @@ public class PlayerHitbox : MonoBehaviour
     public int ApplyDamageMultiplier(int baseDamage)
     {
         return Mathf.Max(0, Mathf.RoundToInt(baseDamage * damageMultiplier));
+    }
+
+    public void SetHitboxEnabled(bool enabled)
+    {
+        CacheColliders();
+        if (cachedColliders == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < cachedColliders.Length; i++)
+        {
+            if (cachedColliders[i] != null)
+            {
+                cachedColliders[i].enabled = enabled;
+            }
+        }
+    }
+
+    private void CacheColliders()
+    {
+        if (cachedColliders == null || cachedColliders.Length == 0)
+        {
+            cachedColliders = GetComponents<Collider>();
+        }
     }
 
     private void OnValidate()

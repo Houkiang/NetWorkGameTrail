@@ -8,6 +8,7 @@ using UnityEngine.UI;
 public class LocalPlayerCameraController : NetworkBehaviour
 {
     private const int CrosshairCanvasSortingOrder = 80;
+    private const int CombatHudCanvasSortingOrder = 75;
 
     [SerializeField]
     private GameObject mainCameraPrefab;
@@ -46,6 +47,22 @@ public class LocalPlayerCameraController : NetworkBehaviour
     [SerializeField]
     private float crosshairGap = 6f;
 
+    [Header("Combat HUD")]
+    [SerializeField]
+    private Color hudTextColor = new Color(1f, 1f, 1f, 0.96f);
+
+    [SerializeField]
+    private Color hudPanelColor = new Color(0f, 0f, 0f, 0.28f);
+
+    [SerializeField]
+    private Vector2 hudPanelSize = new Vector2(260f, 120f);
+
+    [SerializeField]
+    private Vector2 hudPanelOffset = new Vector2(24f, -24f);
+
+    [SerializeField]
+    private int hudFontSize = 22;
+
     private Transform cameraTarget;
     private Camera runtimeCamera;
     private GameObject spawnedMainCamera;
@@ -54,12 +71,19 @@ public class LocalPlayerCameraController : NetworkBehaviour
     private CinemachineVirtualCamera virtualCamera;
     private Canvas crosshairCanvas;
     private CanvasGroup crosshairCanvasGroup;
+    private Canvas combatHudCanvas;
+    private CanvasGroup combatHudCanvasGroup;
+    private Text healthText;
+    private Text damageText;
+    private Text killText;
+    private PlayerHealth playerHealth;
     private float yaw;
     private float pitch;
 
     private void Awake()
     {
         cameraTarget = FindCameraTarget();
+        playerHealth = GetComponent<PlayerHealth>();
     }
 
     public override void OnNetworkSpawn()
@@ -72,12 +96,15 @@ public class LocalPlayerCameraController : NetworkBehaviour
 
         SetupOwnerCamera();
         BuildCrosshairCanvas();
+        BuildCombatHudCanvas();
         enabled = true;
     }
 
     private void LateUpdate()
     {
         ApplyCrosshairVisibility();
+        ApplyCombatHudVisibility();
+        RefreshCombatHud();
 
         if (!IsOwner || cameraTarget == null || RuntimeUIState.BlocksGameplayInput || Cursor.lockState != CursorLockMode.Locked)
         {
@@ -192,6 +219,40 @@ public class LocalPlayerCameraController : NetworkBehaviour
         ApplyCrosshairVisibility();
     }
 
+    private void BuildCombatHudCanvas()
+    {
+        if (combatHudCanvas != null)
+        {
+            ApplyCombatHudVisibility();
+            RefreshCombatHud();
+            return;
+        }
+
+        combatHudCanvas = RuntimeCanvasUIFactory.CreateScreenCanvas("CombatHudCanvas", transform, CombatHudCanvasSortingOrder);
+        combatHudCanvasGroup = combatHudCanvas.gameObject.AddComponent<CanvasGroup>();
+        combatHudCanvasGroup.interactable = false;
+        combatHudCanvasGroup.blocksRaycasts = false;
+
+        Image panel = RuntimeCanvasUIFactory.CreateImage("CombatHudPanel", combatHudCanvas.transform, hudPanelColor);
+        RectTransform panelRect = panel.rectTransform;
+        panelRect.anchorMin = new Vector2(0f, 1f);
+        panelRect.anchorMax = new Vector2(0f, 1f);
+        panelRect.pivot = new Vector2(0f, 1f);
+        panelRect.anchoredPosition = hudPanelOffset;
+        panelRect.sizeDelta = hudPanelSize;
+
+        RectTransform content = RuntimeCanvasUIFactory.CreateUIObject("Content", panel.transform).GetComponent<RectTransform>();
+        RuntimeCanvasUIFactory.StretchToParent(content, 16f, 16f, 12f, 12f);
+        RuntimeCanvasUIFactory.AddVerticalLayout(content, 8f);
+
+        healthText = RuntimeCanvasUIFactory.CreateText("HealthText", content, string.Empty, hudFontSize, FontStyle.Bold, TextAnchor.MiddleLeft, hudTextColor);
+        damageText = RuntimeCanvasUIFactory.CreateText("DamageText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
+        killText = RuntimeCanvasUIFactory.CreateText("KillText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
+
+        ApplyCombatHudVisibility();
+        RefreshCombatHud();
+    }
+
     private void CreateCrosshairBar(string name, Transform parent, Vector2 anchoredPosition, Vector2 size)
     {
         Image image = RuntimeCanvasUIFactory.CreateImage(name, parent, crosshairColor);
@@ -216,6 +277,47 @@ public class LocalPlayerCameraController : NetworkBehaviour
         crosshairCanvasGroup.alpha = shouldShow ? 1f : 0f;
         crosshairCanvasGroup.interactable = false;
         crosshairCanvasGroup.blocksRaycasts = false;
+    }
+
+    private void ApplyCombatHudVisibility()
+    {
+        if (combatHudCanvasGroup == null)
+        {
+            return;
+        }
+
+        bool shouldShow = IsOwner && !RuntimeUIState.IsSettingsMenuOpen;
+        combatHudCanvasGroup.alpha = shouldShow ? 1f : 0f;
+        combatHudCanvasGroup.interactable = false;
+        combatHudCanvasGroup.blocksRaycasts = false;
+    }
+
+    private void RefreshCombatHud()
+    {
+        if (!IsOwner || healthText == null)
+        {
+            return;
+        }
+
+        if (playerHealth == null)
+        {
+            playerHealth = GetComponent<PlayerHealth>();
+        }
+
+        if (playerHealth == null)
+        {
+            healthText.text = "HP: --";
+            damageText.text = "Damage: --";
+            killText.text = "Kills: --";
+            return;
+        }
+
+        healthText.text = playerHealth.IsDead
+            ? $"HP: 0 / {playerHealth.MaxHealth}  [DEAD]"
+            : $"HP: {playerHealth.CurrentHealth} / {playerHealth.MaxHealth}";
+        damageText.text = $"Damage: {playerHealth.TotalDamageDealt}";
+        killText.text = $"Kills: {playerHealth.KillCount}";
+        healthText.color = playerHealth.IsDead ? new Color(1f, 0.4f, 0.4f, hudTextColor.a) : hudTextColor;
     }
 
     private Transform FindCameraTarget()
@@ -258,6 +360,16 @@ public class LocalPlayerCameraController : NetworkBehaviour
             Destroy(crosshairCanvas.gameObject);
             crosshairCanvas = null;
             crosshairCanvasGroup = null;
+        }
+
+        if (combatHudCanvas != null)
+        {
+            Destroy(combatHudCanvas.gameObject);
+            combatHudCanvas = null;
+            combatHudCanvasGroup = null;
+            healthText = null;
+            damageText = null;
+            killText = null;
         }
 
         if (spawnedVirtualCamera != null)

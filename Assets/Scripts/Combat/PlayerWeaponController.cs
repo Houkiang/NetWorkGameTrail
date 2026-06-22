@@ -50,4 +50,24 @@ public class PlayerWeaponController : NetworkBehaviour
 
         nextLocalFireTime = localTime + currentWeapon.FireInterval;
     }
+
+    public float GetLocalCooldownRemaining(double localTime)
+    {
+        if (currentWeapon == null)
+        {
+            return 0f;
+        }
+
+        return Mathf.Max(0f, (float)(nextLocalFireTime - localTime));
+    }
+
+    public float GetServerCooldownRemaining(double serverTime)
+    {
+        if (currentWeapon == null)
+        {
+            return 0f;
+        }
+
+        return Mathf.Max(0f, (float)(nextServerFireTime - serverTime));
+    }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,7 +7,7 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(PlayerWeaponController))]
 [RequireComponent(typeof(PlayerHealth))]
-public class PlayerCombatController : NetworkBehaviour
+public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
 {
     private static readonly int FireTriggerHash = Animator.StringToHash("Fire");
 
@@ -54,16 +55,35 @@ public class PlayerCombatController : NetworkBehaviour
     private PlayerWeaponController weaponController;
     private PlayerHealth health;
     private Animator characterAnimator;
+    private bool lastShotDidHit;
+    private bool lastShotHitPlayer;
+    private Vector3 lastShotEndPoint;
 
     public Transform FireOrigin => fireOrigin != null ? fireOrigin : transform;
 
     public bool CanAcceptCombatInput => IsOwner && health != null && health.IsAlive && !RuntimeUIState.BlocksGameplayInput;
+
+    public int DebugSortOrder => 120;
+
+    public string DebugSectionTitle => "Combat";
+
+    public bool ShouldDisplayInDebugOverlay => Application.isPlaying && IsOwner;
 
     private void Awake()
     {
         weaponController = GetComponent<PlayerWeaponController>();
         health = GetComponent<PlayerHealth>();
         characterAnimator = GetComponentInChildren<Animator>(true);
+    }
+
+    private void OnEnable()
+    {
+        DebugPanelRegistry.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        DebugPanelRegistry.Unregister(this);
     }
 
     private void Update()
@@ -209,6 +229,13 @@ public class PlayerCombatController : NetworkBehaviour
         if (didHit)
         {
             PlayImpactPresentation(weapon, impactPoint, impactNormal, hitPlayer);
+        }
+
+        if (isLocalShooter)
+        {
+            lastShotDidHit = didHit;
+            lastShotHitPlayer = hitPlayer;
+            lastShotEndPoint = didHit ? impactPoint : traceEndPoint;
         }
     }
 
@@ -541,5 +568,44 @@ public class PlayerCombatController : NetworkBehaviour
         };
 
         return debugTracerMaterial;
+    }
+
+    public void AppendDebugLines(List<string> lines)
+    {
+        WeaponDefinition weapon = weaponController != null ? weaponController.CurrentWeapon : null;
+
+        lines.Add($"Alive: {health != null && health.IsAlive}");
+        lines.Add($"Can Fire Input: {CanAcceptCombatInput}");
+        lines.Add($"Health: {(health != null ? $"{health.CurrentHealth}/{health.MaxHealth}" : "N/A")}");
+        lines.Add($"Kills / Damage: {(health != null ? $"{health.KillCount} / {health.TotalDamageDealt}" : "N/A")}");
+
+        if (weapon == null)
+        {
+            lines.Add("Weapon: None");
+            return;
+        }
+
+        lines.Add($"Weapon: {weapon.WeaponName}");
+        lines.Add($"Damage / Range: {weapon.Damage} / {weapon.Range:F1}");
+        lines.Add($"Fire Rate: {weapon.FireRate:F2}/s");
+        lines.Add($"Local Cooldown: {(weaponController != null ? weaponController.GetLocalCooldownRemaining(Time.unscaledTimeAsDouble).ToString("F3") : "N/A")}");
+        lines.Add($"Fire Origin: {FormatVector3(FireOrigin.position)}");
+        lines.Add($"Debug Tracer: {showDebugTracers}");
+        lines.Add($"Last Shot: {DescribeLastShotResult()} @ {FormatVector3(lastShotEndPoint)}");
+    }
+
+    private string DescribeLastShotResult()
+    {
+        if (!lastShotDidHit)
+        {
+            return "Miss";
+        }
+
+        return lastShotHitPlayer ? "Hit Player" : "Hit World";
+    }
+
+    private static string FormatVector3(Vector3 value)
+    {
+        return $"{value.x:F2}, {value.y:F2}, {value.z:F2}";
     }
 }

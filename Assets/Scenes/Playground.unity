@@ -321,6 +321,14 @@ PrefabInstance:
       propertyPath: NetworkConfig.PlayerPrefab
       value: 
       objectReference: {fileID: 7376517248814331689, guid: 41cb1be9f6d898449b66ce4cc041b0b6, type: 3}
+    - target: {fileID: 7522104315017724802, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: firstSpawnPosition.x
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 7522104315017724802, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: firstSpawnPosition.z
+      value: 6
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

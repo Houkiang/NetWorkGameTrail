@@ -170,6 +170,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private CharacterController characterController;
     private Animator characterAnimator;
     private NetworkTransform networkTransform;
+    private PlayerHealth health;
     private Transform visualRoot;
     private Transform leftFootBone;
     private Transform rightFootBone;
@@ -218,6 +219,8 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private bool UsesPrediction => IsOwner && !IsServer;
 
+    private bool CanProcessMovement => health == null || health.IsAlive;
+
     private float TickInterval
     {
         get
@@ -244,6 +247,7 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         EnsurePenetrationProbe();
         characterAnimator = GetComponentInChildren<Animator>(true);
         networkTransform = GetComponent<NetworkTransform>();
+        health = GetComponent<PlayerHealth>();
         visualRoot = transform.childCount > 0 ? transform.GetChild(0) : null;
         if (visualRoot != null)
         {
@@ -281,12 +285,24 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         ownerRenderPositionVelocity = Vector3.zero;
         ownerVisualCorrectionOffset = Vector3.zero;
         authoritativeState.OnValueChanged += OnAuthoritativeStateChanged;
+
+        if (health != null)
+        {
+            health.DeadStateChanged += HandleDeadStateChanged;
+            HandleDeadStateChanged(health.IsDead);
+        }
+
         enabled = true;
     }
 
     public override void OnNetworkDespawn()
     {
         authoritativeState.OnValueChanged -= OnAuthoritativeStateChanged;
+
+        if (health != null)
+        {
+            health.DeadStateChanged -= HandleDeadStateChanged;
+        }
 
         if (characterController != null)
         {
@@ -349,11 +365,9 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private void SampleOwnerInput()
     {
-        if (RuntimeUIState.BlocksGameplayInput)
+        if (RuntimeUIState.BlocksGameplayInput || !CanProcessMovement)
         {
-            sampledMoveInput = Vector3.zero;
-            sampledSprintHeld = false;
-            jumpQueued = false;
+            ClearSampledInput();
             return;
         }
 
@@ -371,14 +385,17 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private void SampleHostAuthoritativeInput(float deltaTime)
     {
-        latestServerInput = new InputCommand
-        {
-            Sequence = ++nextInputSequence,
-            MoveDirection = sampledMoveInput,
-            AimYaw = sampledAimYaw,
-            SprintHeld = sampledSprintHeld,
-            JumpPressed = jumpQueued
-        };
+        uint sequence = ++nextInputSequence;
+        latestServerInput = CanProcessMovement
+            ? new InputCommand
+            {
+                Sequence = sequence,
+                MoveDirection = sampledMoveInput,
+                AimYaw = sampledAimYaw,
+                SprintHeld = sampledSprintHeld,
+                JumpPressed = jumpQueued
+            }
+            : BuildInactiveCommand(sequence);
 
         jumpQueued = false;
         SimulateTick(ref serverState, latestServerInput, deltaTime);
@@ -420,10 +437,17 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private InputCommand BuildPredictedCommand()
     {
+        uint sequence = ++nextInputSequence;
+        if (!CanProcessMovement)
+        {
+            ClearSampledInput();
+            return BuildInactiveCommand(sequence);
+        }
+
         bool jumpPressed = jumpQueued || (jumpAwaitingServerConsume && jumpResendTicksRemaining > 0);
         InputCommand command = new InputCommand
         {
-            Sequence = ++nextInputSequence,
+            Sequence = sequence,
             MoveDirection = sampledMoveInput,
             AimYaw = sampledAimYaw,
             SprintHeld = sampledSprintHeld,
@@ -462,6 +486,12 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
 
     private void ConsumeLatestServerInputState()
     {
+        if (!CanProcessMovement)
+        {
+            latestServerInput = BuildInactiveCommand(latestServerInput.Sequence + 1);
+            return;
+        }
+
         if (latestReceivedServerInput.Sequence > latestConsumedServerSequence)
         {
             latestServerInput = latestReceivedServerInput;
@@ -1233,6 +1263,68 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
         return new Vector3(Mathf.Sin(radians), 0f, Mathf.Cos(radians));
     }
 
+    public void HandleDeadStateChanged(bool dead)
+    {
+        ClearSampledInput();
+        sampledAimYaw = transform.eulerAngles.y;
+        pendingInputs.Clear();
+        jumpAwaitingServerConsume = false;
+        jumpResendTicksRemaining = 0;
+        jumpRequestSequence = 0;
+        localTickAccumulator = 0f;
+        serverTickAccumulator = 0f;
+        visualSpeed = 0f;
+        visualMoveInput = Vector2.zero;
+        ownerRenderPositionVelocity = Vector3.zero;
+        ownerVisualCorrectionOffset = Vector3.zero;
+        remoteRenderPositionVelocity = Vector3.zero;
+        serverRemoteVisualRootVelocity = Vector3.zero;
+
+        MotorState resetState = CreateInitialState(transform.position, transform.eulerAngles.y);
+        predictedState = resetState;
+        serverState = resetState;
+        remoteVisualState = resetState;
+
+        if (IsServer)
+        {
+            PublishAuthoritativeState();
+        }
+    }
+
+    public void ResetMovementStateServer(Vector3 position, float yaw)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        transform.position = position;
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        ClearSampledInput();
+        sampledAimYaw = yaw;
+        pendingInputs.Clear();
+        jumpAwaitingServerConsume = false;
+        jumpResendTicksRemaining = 0;
+        jumpRequestSequence = 0;
+        localTickAccumulator = 0f;
+        serverTickAccumulator = 0f;
+        latestServerInput = BuildInactiveCommand(nextInputSequence);
+        latestReceivedServerInput = latestServerInput;
+        ownerRenderPositionVelocity = Vector3.zero;
+        ownerVisualCorrectionOffset = Vector3.zero;
+        remoteRenderPositionVelocity = Vector3.zero;
+        serverRemoteVisualRootVelocity = Vector3.zero;
+        visualSpeed = 0f;
+        visualMoveInput = Vector2.zero;
+
+        MotorState resetState = CreateInitialState(position, yaw);
+        predictedState = resetState;
+        serverState = resetState;
+        remoteVisualState = resetState;
+        ApplyStateToTransform(resetState);
+        PublishAuthoritativeState();
+    }
+
     public void AppendDebugLines(List<string> lines)
     {
         lines.Add($"Role: {GetLocalRoleLabel()}");
@@ -1355,6 +1447,25 @@ public class PlayerController : NetworkBehaviour, IDebugPanelProvider
     private static string FormatVector3(Vector3 value)
     {
         return $"{value.x:F2}, {value.y:F2}, {value.z:F2}";
+    }
+
+    private void ClearSampledInput()
+    {
+        sampledMoveInput = Vector3.zero;
+        sampledSprintHeld = false;
+        jumpQueued = false;
+    }
+
+    private InputCommand BuildInactiveCommand(uint sequence)
+    {
+        return new InputCommand
+        {
+            Sequence = sequence,
+            MoveDirection = Vector3.zero,
+            AimYaw = transform.eulerAngles.y,
+            SprintHeld = false,
+            JumpPressed = false
+        };
     }
 
     private void DisableEmbeddedLocalControllers()
