@@ -13,6 +13,9 @@ public class PlayerSpawnService : MonoBehaviour
     [SerializeField]
     private float spawnSpacing = 2.5f;
 
+    [SerializeField]
+    private bool logRespawnSelection;
+
     private readonly Dictionary<ulong, NetworkObject> spawnedPlayers = new Dictionary<ulong, NetworkObject>();
     private NetworkManager networkManager;
     private NetworkBootstrap bootstrap;
@@ -94,7 +97,8 @@ public class PlayerSpawnService : MonoBehaviour
         }
 
         Vector3 spawnPosition = firstSpawnPosition + new Vector3(spawnedPlayers.Count * spawnSpacing, 0f, 0f);
-        GameObject instance = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
+        Quaternion spawnRotation = Quaternion.identity;
+        GameObject instance = Instantiate(playerPrefab, spawnPosition, spawnRotation);
         instance.name = $"Player_{clientId}";
 
         NetworkObject networkObject = instance.GetComponent<NetworkObject>();
@@ -159,5 +163,47 @@ public class PlayerSpawnService : MonoBehaviour
         }
 
         spawnedPlayers.Clear();
+    }
+
+    public bool TryGetRandomRespawnPose(out Vector3 position, out Quaternion rotation)
+    {
+        RespawnPoint[] respawnPoints = FindObjectsOfType<RespawnPoint>(true);
+        if (respawnPoints == null || respawnPoints.Length == 0)
+        {
+            position = default;
+            rotation = Quaternion.identity;
+            return false;
+        }
+
+        List<RespawnPoint> validPoints = new List<RespawnPoint>(respawnPoints.Length);
+        for (int i = 0; i < respawnPoints.Length; i++)
+        {
+            RespawnPoint point = respawnPoints[i];
+            if (point == null || !point.isActiveAndEnabled || !point.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            validPoints.Add(point);
+        }
+
+        if (validPoints.Count == 0)
+        {
+            position = default;
+            rotation = Quaternion.identity;
+            return false;
+        }
+
+        int selectedIndex = UnityEngine.Random.Range(0, validPoints.Count);
+        RespawnPoint selectedPoint = validPoints[selectedIndex];
+        position = selectedPoint.Position;
+        rotation = selectedPoint.Rotation;
+
+        if (logRespawnSelection)
+        {
+            Debug.Log($"Selected respawn point '{selectedPoint.name}' at {position}.");
+        }
+
+        return true;
     }
 }

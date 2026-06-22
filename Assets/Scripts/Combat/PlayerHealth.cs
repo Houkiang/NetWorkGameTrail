@@ -39,6 +39,7 @@ public class PlayerHealth : NetworkBehaviour
     private PlayerController playerController;
     private PlayerHitbox[] hitboxes;
     private Renderer[] modelRenderers;
+    private PlayerSpawnService playerSpawnService;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
     private Coroutine respawnCoroutine;
@@ -100,6 +101,7 @@ public class PlayerHealth : NetworkBehaviour
         playerController = GetComponent<PlayerController>();
         hitboxes = GetComponentsInChildren<PlayerHitbox>(true);
         modelRenderers = GetComponentsInChildren<Renderer>(true);
+        playerSpawnService = FindObjectOfType<PlayerSpawnService>();
     }
 
     public bool CanTakeDamageFrom(ulong attackerClientId)
@@ -317,6 +319,10 @@ public class PlayerHealth : NetworkBehaviour
             yield break;
         }
 
+        ResolveRespawnPose(out Vector3 respawnPosition, out Quaternion respawnRotation);
+        spawnPosition = respawnPosition;
+        spawnRotation = respawnRotation;
+
         playerController?.ResetMovementStateServer(spawnPosition, spawnRotation.eulerAngles.y);
         maxHealth = Mathf.Max(1, maxHealth);
         currentHealth.Value = maxHealth;
@@ -344,5 +350,21 @@ public class PlayerHealth : NetworkBehaviour
     private void NotifyCombatStatsChanged()
     {
         CombatStatsChanged?.Invoke(totalDamageDealt.Value, killCount.Value);
+    }
+
+    private void ResolveRespawnPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (playerSpawnService == null)
+        {
+            playerSpawnService = FindObjectOfType<PlayerSpawnService>();
+        }
+
+        if (playerSpawnService != null && playerSpawnService.TryGetRandomRespawnPose(out position, out rotation))
+        {
+            return;
+        }
+
+        position = spawnPosition;
+        rotation = spawnRotation;
     }
 }
