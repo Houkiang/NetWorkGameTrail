@@ -16,6 +16,7 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
     private const float DefaultImpactFxLifetime = 5f;
     private const float DefaultTracerLifetime = 2f;
     private const float DefaultFireAudioVolume = 1f;
+    private const float DefaultReloadAudioVolume = 1f;
     private const float DefaultDebugTracerLifetime = 0.08f;
     private const float DefaultDebugTracerWidth = 0.018f;
 
@@ -26,6 +27,26 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
 
     [SerializeField]
     private KeyCode fireKey = KeyCode.Mouse0;
+
+    [SerializeField]
+    private KeyCode reloadKey = KeyCode.R;
+
+    [Header("Animation")]
+    [SerializeField]
+    [Tooltip("换弹动画 Trigger 参数名。Animator Controller 中需要有同名 Trigger 才会播放换弹动画。")]
+    private string reloadTriggerName = "Reload";
+
+    [SerializeField]
+    [Tooltip("是否在换弹状态开始时触发换弹动画。没有换弹动画时可以关闭。")]
+    private bool playReloadAnimation = true;
+
+    [SerializeField]
+    [Tooltip("换弹动画速度倍率参数名。Animator Controller 的 Reloading 状态需要把 Speed Multiplier 绑定到这个 Float 参数。")]
+    private string reloadSpeedParameterName = "ReloadSpeed";
+
+    [SerializeField]
+    [Tooltip("是否根据武器配置的 Reload Animation Duration 与 Reload Time 自动设置换弹动画速度。")]
+    private bool matchReloadAnimationToReloadTime = true;
 
     [SerializeField]
     private bool logServerHits = true;
@@ -59,7 +80,7 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
     private bool lastShotHitPlayer;
     private Vector3 lastShotEndPoint;
 
-    public Transform FireOrigin => fireOrigin != null ? fireOrigin : transform;
+    public Transform FireOrigin => ResolveFireOriginTransform() ?? transform;
 
     public bool CanAcceptCombatInput => IsOwner && health != null && health.IsAlive && !RuntimeUIState.BlocksGameplayInput;
 
@@ -76,6 +97,27 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         characterAnimator = GetComponentInChildren<Animator>(true);
     }
 
+    public override void OnNetworkSpawn()
+    {
+        if (weaponController == null)
+        {
+            weaponController = GetComponent<PlayerWeaponController>();
+        }
+
+        if (weaponController != null)
+        {
+            weaponController.ReloadStateChanged += OnReloadStateChanged;
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (weaponController != null)
+        {
+            weaponController.ReloadStateChanged -= OnReloadStateChanged;
+        }
+    }
+
     private void OnEnable()
     {
         DebugPanelRegistry.Register(this);
@@ -88,12 +130,40 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
 
     private void Update()
     {
-        if (!CanAcceptCombatInput || !Input.GetKey(fireKey))
+        if (!CanAcceptCombatInput)
         {
             return;
         }
 
-        TryFire();
+        if (Input.GetKeyDown(reloadKey))
+        {
+            weaponController.TryStartReload();
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            weaponController.TrySwitchWeapon(0);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha2))
+        {
+            weaponController.TrySwitchWeapon(1);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Alpha3))
+        {
+            weaponController.TrySwitchWeapon(2);
+        }
+
+        WeaponDefinition weapon = weaponController != null ? weaponController.CurrentWeapon : null;
+        bool wantsToFire = weapon != null && weapon.Automatic
+            ? Input.GetKey(fireKey)
+            : Input.GetKeyDown(fireKey);
+
+        if (wantsToFire)
+        {
+            TryFire();
+        }
     }
 
     public bool TryFire()
@@ -170,6 +240,7 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         }
 
         double serverTime = NetworkManager.ServerTime.Time;
+        weaponController.TryCompleteReloadServer(serverTime);
         if (!weaponController.CanFireServer(serverTime))
         {
             return;
@@ -183,7 +254,7 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         }
 
         weaponController.MarkServerShotFired(serverTime);
-        Vector3 shotDirection = shotVector.normalized;
+        Vector3 shotDirection = ApplySpread(shotVector.normalized, weapon.SpreadAngle);
         Vector3 traceEndPoint = serverOrigin + shotDirection * weapon.Range;
         bool didHit = ResolveServerShot(
             serverOrigin,
@@ -321,7 +392,7 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
 
         Collider[] overlaps = Physics.OverlapSphere(
             origin,
-            muzzleOverlapRadius,
+            GetMuzzleOverlapRadius(weapon),
             weapon.HitMask,
             QueryTriggerInteraction.Collide);
 
@@ -370,9 +441,30 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
 
     private Vector3 GetServerFireOrigin()
     {
-        return fireOrigin != null
-            ? fireOrigin.position
+        Transform resolvedOrigin = ResolveFireOriginTransform();
+        return resolvedOrigin != null
+            ? resolvedOrigin.position
             : transform.position + Vector3.up * DefaultFireOriginHeight;
+    }
+
+    private Transform ResolveFireOriginTransform()
+    {
+        if (weaponController != null && weaponController.CurrentMuzzleTransform != null)
+        {
+            return weaponController.CurrentMuzzleTransform;
+        }
+
+        return fireOrigin;
+    }
+
+    private float GetMuzzleOverlapRadius(WeaponDefinition weapon)
+    {
+        if (weapon == null)
+        {
+            return muzzleOverlapRadius;
+        }
+
+        return Mathf.Max(0.001f, weapon.MuzzleOverlapRadius);
     }
 
     private bool IsSelfCollider(Collider collider)
@@ -390,6 +482,27 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
     private static bool IsFinite(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private static Vector3 ApplySpread(Vector3 direction, float spreadAngle)
+    {
+        if (spreadAngle <= 0f || direction.sqrMagnitude <= 0.0001f)
+        {
+            return direction;
+        }
+
+        direction.Normalize();
+
+        Vector3 right = Vector3.Cross(Vector3.up, direction);
+        if (right.sqrMagnitude <= 0.0001f)
+        {
+            right = Vector3.Cross(Vector3.right, direction);
+        }
+
+        right.Normalize();
+        Vector3 up = Vector3.Cross(direction, right).normalized;
+        Vector2 randomOffset = UnityEngine.Random.insideUnitCircle * Mathf.Tan(spreadAngle * Mathf.Deg2Rad);
+        return (direction + right * randomOffset.x + up * randomOffset.y).normalized;
     }
 
     private void PlayPredictedFireFeedback(WeaponDefinition weapon, Vector3 aimPoint)
@@ -510,6 +623,100 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         characterAnimator.SetTrigger(FireTriggerHash);
     }
 
+    private void OnReloadStateChanged(bool wasReloading, bool isReloading)
+    {
+        WeaponDefinition weapon = weaponController != null ? weaponController.CurrentWeapon : null;
+        if (isReloading)
+        {
+            TryPlayReloadAnimation(weapon);
+            TryPlayReloadAudio(weapon, started: true);
+        }
+        else if (wasReloading)
+        {
+            ResetReloadAnimationSpeed();
+            TryPlayReloadAudio(weapon, started: false);
+        }
+    }
+
+    private void TryPlayReloadAnimation(WeaponDefinition weapon)
+    {
+        if (!playReloadAnimation || characterAnimator == null || string.IsNullOrWhiteSpace(reloadTriggerName))
+        {
+            return;
+        }
+
+        ApplyReloadAnimationSpeed(weapon);
+
+        int reloadTriggerHash = Animator.StringToHash(reloadTriggerName);
+        characterAnimator.ResetTrigger(reloadTriggerHash);
+        characterAnimator.SetTrigger(reloadTriggerHash);
+    }
+
+    private void ApplyReloadAnimationSpeed(WeaponDefinition weapon)
+    {
+        if (!matchReloadAnimationToReloadTime
+            || weapon == null
+            || characterAnimator == null
+            || string.IsNullOrWhiteSpace(reloadSpeedParameterName)
+            || !HasAnimatorParameter(characterAnimator, reloadSpeedParameterName, AnimatorControllerParameterType.Float))
+        {
+            return;
+        }
+
+        float animationDuration = Mathf.Max(0.01f, weapon.ReloadAnimationDuration);
+        float reloadTime = Mathf.Max(0.01f, weapon.ReloadTime);
+        float speedMultiplier = Mathf.Clamp(animationDuration / reloadTime, 0.05f, 10f);
+        characterAnimator.SetFloat(reloadSpeedParameterName, speedMultiplier);
+    }
+
+    private void ResetReloadAnimationSpeed()
+    {
+        if (characterAnimator == null
+            || string.IsNullOrWhiteSpace(reloadSpeedParameterName)
+            || !HasAnimatorParameter(characterAnimator, reloadSpeedParameterName, AnimatorControllerParameterType.Float))
+        {
+            return;
+        }
+
+        characterAnimator.SetFloat(reloadSpeedParameterName, 1f);
+    }
+
+    private static bool HasAnimatorParameter(Animator animator, string parameterName, AnimatorControllerParameterType parameterType)
+    {
+        if (animator == null || string.IsNullOrWhiteSpace(parameterName))
+        {
+            return false;
+        }
+
+        AnimatorControllerParameter[] parameters = animator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            AnimatorControllerParameter parameter = parameters[i];
+            if (parameter.type == parameterType && parameter.name == parameterName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void TryPlayReloadAudio(WeaponDefinition weapon, bool started)
+    {
+        if (weapon == null)
+        {
+            return;
+        }
+
+        AudioClip clip = started ? weapon.ReloadStartAudioClip : weapon.ReloadCompleteAudioClip;
+        if (clip == null)
+        {
+            return;
+        }
+
+        AudioSource.PlayClipAtPoint(clip, FireOrigin.position, DefaultReloadAudioVolume);
+    }
+
     private void TryPlayDebugTracer(Vector3 origin, Vector3 traceEndPoint, Color color, float lifetime)
     {
         if ((traceEndPoint - origin).sqrMagnitude <= 0.0001f)
@@ -586,12 +793,32 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         }
 
         lines.Add($"Weapon: {weapon.WeaponName}");
+        lines.Add($"Slot / Ammo: {(weaponController != null ? $"{weaponController.CurrentWeaponIndex + 1}/{weaponController.WeaponSlotCount} / {weaponController.AmmoDisplayText}" : "N/A")}");
+        lines.Add($"Reloading: {(weaponController != null && weaponController.IsReloading)}");
+        lines.Add($"Reload Anim Match: {matchReloadAnimationToReloadTime} ({reloadSpeedParameterName})");
         lines.Add($"Damage / Range: {weapon.Damage} / {weapon.Range:F1}");
         lines.Add($"Fire Rate: {weapon.FireRate:F2}/s");
+        lines.Add($"Spread / Recoil: {weapon.SpreadAngle:F2}° / {weapon.RecoilPitch:F2}°x{weapon.RecoilYaw:F2}°");
+        lines.Add($"Muzzle Overlap Radius: {GetMuzzleOverlapRadius(weapon):F3}");
         lines.Add($"Local Cooldown: {(weaponController != null ? weaponController.GetLocalCooldownRemaining(Time.unscaledTimeAsDouble).ToString("F3") : "N/A")}");
-        lines.Add($"Fire Origin: {FormatVector3(FireOrigin.position)}");
+        lines.Add($"Fire Origin: {GetFireOriginSourceLabel()} @ {FormatVector3(FireOrigin.position)}");
         lines.Add($"Debug Tracer: {showDebugTracers}");
         lines.Add($"Last Shot: {DescribeLastShotResult()} @ {FormatVector3(lastShotEndPoint)}");
+    }
+
+    private string GetFireOriginSourceLabel()
+    {
+        if (weaponController != null && weaponController.CurrentMuzzleTransform != null)
+        {
+            return $"Weapon Muzzle ({weaponController.CurrentMuzzleTransform.name})";
+        }
+
+        if (fireOrigin != null)
+        {
+            return $"Prefab FireOrigin ({fireOrigin.name})";
+        }
+
+        return "Fallback";
     }
 
     private string DescribeLastShotResult()

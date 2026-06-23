@@ -3282,6 +3282,11 @@ MonoBehaviour:
   crosshairThickness: 3
   crosshairLength: 10
   crosshairGap: 6
+  hudTextColor: {r: 1, g: 1, b: 1, a: 0.96}
+  hudPanelColor: {r: 0, g: 0, b: 0, a: 0.28}
+  hudPanelSize: {x: 260, y: 120}
+  hudPanelOffset: {x: 24, y: -24}
+  hudFontSize: 22
 --- !u!114 &-2431327200308125564
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3366,7 +3371,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b8f7399a29a4219a4e80778a492ee4d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentWeapon: {fileID: 11400000, guid: 60a1d870b1e24810b6f77e2b0fc6a126, type: 2}
+  currentWeapon: {fileID: 0}
+  weaponSlots:
+  - {fileID: 11400000, guid: daf4f4fed6357ea4da1f0200ad27c160, type: 2}
+  - {fileID: 11400000, guid: 08d53c96a6225254bbd7aeb26c19ab00, type: 2}
+  - {fileID: 11400000, guid: 2711dbfc1b86d3f4b9eeb52a2e0029b7, type: 2}
+  weaponModelSocket: {fileID: 6375809341707086356}
+  autoFindWeaponModelSocket: 1
+  weaponModelSocketNameHints:
+  - WeaponSocket
+  - RightHandWeaponSocket
+  - R_Hand_Con
+  - RightHand
+  - mixamorig:RightHand
+  - Jnt_R_Hand
+  disableSpawnedModelColliders: 1
+  clearModelWhenWeaponHasNoPrefab: 1
+  switchAudioVolume: 1
 --- !u!114 &5105262029046607440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3381,6 +3402,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   fireOrigin: {fileID: 1041328561150240825}
   fireKey: 323
+  reloadKey: 114
   logServerHits: 1
   muzzleOverlapRadius: 0.05
   showDebugTracers: 1
@@ -4088,7 +4110,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3960879644723491920, guid: 529ebea0071e45b4e964c7ef2287637e, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3960879644723491920, guid: 529ebea0071e45b4e964c7ef2287637e, type: 3}
       propertyPath: m_TagString

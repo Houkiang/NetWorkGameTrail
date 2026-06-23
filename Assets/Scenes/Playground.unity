@@ -317,6 +317,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4223344556677889900, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
+      propertyPath: gameplayHelpText
+      value: "WASD: \u79FB\u52A8\nSpace: \u8DF3\u8DC3\nLeftShift: \u75BE\u8DD1\nEsc:
+        \u8BBE\u7F6E\u754C\u9762\n\u9F20\u6807\u5DE6\u952E\uFF1A\u5F00\u706B\n\u6570\u5B57\u952E1/2/3\uFF1A\u5207\u67AA\nR\uFF1A\u6362\u5F39\nF1:
+        Debug\u4FE1\u606F\u5C55\u793A\n\nHost: \u672C\u673A\u65E2\u662F\u670D\u52A1\u5668\u53C8\u662F\u73A9\u5BB6\nServer:
+        \u672C\u673A\u4EC5\u521B\u5EFA\u53EF\u89C6\u5316\u670D\u52A1\u5668\nClient:
+        \u4F5C\u4E3A\u73A9\u5BB6\u8FDE\u63A5\u5230\u5176\u4ED6\u4E3B\u673A\u6216\u670D\u52A1\u5668\n\u521B\u5EFA\u623F\u95F4\u65F6\u5FC5\u987B\u5904\u4E8E\u540C\u4E00\u4E2A\u5C40\u57DF\u7F51\u4E0B\uFF0C\u540C\u65F6\u7531\u5BA2\u6237\u7AEF\u8F93\u5165\u670D\u52A1\u7AEF\u7684IP\u548CPort\u4EE5\u8FDE\u63A5\uFF1B\u82E5\u4F7F\u7528Localhost\u68C0\u6D4B\u8054\u673A\uFF0CIP\u5E94\u5F53\u8F93\u5165127.0.0.1\n\n\u5F00\u53D1\u8005\uFF1A\u4FAF\u67EF\u826F\u3001\u5374\u663E\u965F\u3001\u5468\u7ADE\u7214\uFF0C\u6240\u6709\u7D20\u6750\u5747\u6765\u81EA\u514D\u8D39\u5F00\u6E90\u5E73\u53F0"
+      objectReference: {fileID: 0}
     - target: {fileID: 4333787153688977572, guid: e498ac16c7537b14b83338b38d19d94e, type: 3}
       propertyPath: NetworkConfig.PlayerPrefab
       value: 

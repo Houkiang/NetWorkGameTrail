@@ -63,6 +63,75 @@ public class LocalPlayerCameraController : NetworkBehaviour
     [SerializeField]
     private int hudFontSize = 22;
 
+    [Header("Weapon HUD")]
+    [SerializeField]
+    [Tooltip("是否显示武器 HUD。关闭后只保留生命值/伤害/击杀 HUD。")]
+    private bool showWeaponHud = true;
+
+    [SerializeField]
+    [Tooltip("是否显示当前武器名称。")]
+    private bool showWeaponName = true;
+
+    [SerializeField]
+    [Tooltip("是否在武器名称后显示当前槽位，例如 [1/3]。")]
+    private bool showWeaponSlot = true;
+
+    [SerializeField]
+    [Tooltip("是否显示当前弹匣弹药。无限弹药会显示为 ∞。")]
+    private bool showWeaponAmmo = true;
+
+    [SerializeField]
+    [Tooltip("是否在换弹时显示进度条。")]
+    private bool showReloadProgress = true;
+
+    [SerializeField]
+    [Tooltip("武器 HUD 面板大小。默认放在屏幕右下角。")]
+    private Vector2 weaponHudPanelSize = new Vector2(320f, 128f);
+
+    [SerializeField]
+    [Tooltip("武器 HUD 面板偏移。默认右下角，X 为负数表示向左，Y 为正数表示向上。")]
+    private Vector2 weaponHudPanelOffset = new Vector2(-24f, 24f);
+
+    [SerializeField]
+    [Tooltip("武器 HUD 面板背景颜色。")]
+    private Color weaponHudPanelColor = new Color(0f, 0f, 0f, 0.34f);
+
+    [SerializeField]
+    [Tooltip("武器 HUD 文字颜色。")]
+    private Color weaponHudTextColor = new Color(1f, 1f, 1f, 0.96f);
+
+    [SerializeField]
+    [Tooltip("换弹进度条背景颜色。")]
+    private Color reloadBarBackgroundColor = new Color(1f, 1f, 1f, 0.18f);
+
+    [SerializeField]
+    [Tooltip("换弹进度条填充颜色。")]
+    private Color reloadBarFillColor = new Color(0.35f, 0.8f, 1f, 0.95f);
+
+    [SerializeField]
+    [Tooltip("武器 HUD 字号。")]
+    private int weaponHudFontSize = 24;
+
+    [SerializeField]
+    [Tooltip("换弹进度条高度。")]
+    private float reloadBarHeight = 8f;
+
+    [SerializeField]
+    [Tooltip("武器名称前缀。可改成中文，例如“武器:”。")]
+    private string weaponNamePrefix = "Weapon:";
+
+    [SerializeField]
+    [Tooltip("弹药显示前缀。可改成中文，例如“弹药:”。")]
+    private string ammoPrefix = "Ammo:";
+
+    [SerializeField]
+    [Tooltip("换弹中显示文本。可改成中文，例如“换弹中”。")]
+    private string reloadingText = "Reloading";
+
+    [SerializeField]
+    [Tooltip("空弹匣提示文本。可改成中文，例如“按 R 换弹”。")]
+    private string emptyMagazineHintText = "Press R to Reload";
+
     private Transform cameraTarget;
     private Camera runtimeCamera;
     private GameObject spawnedMainCamera;
@@ -76,7 +145,13 @@ public class LocalPlayerCameraController : NetworkBehaviour
     private Text healthText;
     private Text damageText;
     private Text killText;
+    private Text weaponNameText;
+    private Text weaponAmmoText;
+    private Text weaponReloadText;
+    private Image reloadProgressBackground;
+    private Image reloadProgressFill;
     private PlayerHealth playerHealth;
+    private PlayerWeaponController playerWeapon;
     private float yaw;
     private float pitch;
 
@@ -84,6 +159,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
     {
         cameraTarget = FindCameraTarget();
         playerHealth = GetComponent<PlayerHealth>();
+        playerWeapon = GetComponent<PlayerWeaponController>();
     }
 
     public override void OnNetworkSpawn()
@@ -105,6 +181,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
         ApplyCrosshairVisibility();
         ApplyCombatHudVisibility();
         RefreshCombatHud();
+        RefreshWeaponHud();
 
         if (!IsOwner || cameraTarget == null || RuntimeUIState.BlocksGameplayInput || Cursor.lockState != CursorLockMode.Locked)
         {
@@ -249,8 +326,70 @@ public class LocalPlayerCameraController : NetworkBehaviour
         damageText = RuntimeCanvasUIFactory.CreateText("DamageText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
         killText = RuntimeCanvasUIFactory.CreateText("KillText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
 
+        BuildWeaponHudPanel();
+
         ApplyCombatHudVisibility();
         RefreshCombatHud();
+        RefreshWeaponHud();
+    }
+
+    private void BuildWeaponHudPanel()
+    {
+        if (!showWeaponHud || combatHudCanvas == null)
+        {
+            return;
+        }
+
+        Image panel = RuntimeCanvasUIFactory.CreateImage("WeaponHudPanel", combatHudCanvas.transform, weaponHudPanelColor);
+        RectTransform panelRect = panel.rectTransform;
+        panelRect.anchorMin = new Vector2(1f, 0f);
+        panelRect.anchorMax = new Vector2(1f, 0f);
+        panelRect.pivot = new Vector2(1f, 0f);
+        panelRect.anchoredPosition = weaponHudPanelOffset;
+        panelRect.sizeDelta = weaponHudPanelSize;
+
+        RectTransform content = RuntimeCanvasUIFactory.CreateUIObject("Content", panel.transform).GetComponent<RectTransform>();
+        RuntimeCanvasUIFactory.StretchToParent(content, 16f, 16f, 12f, 12f);
+        RuntimeCanvasUIFactory.AddVerticalLayout(content, 7f);
+
+        weaponNameText = RuntimeCanvasUIFactory.CreateText(
+            "WeaponNameText",
+            content,
+            string.Empty,
+            weaponHudFontSize,
+            FontStyle.Bold,
+            TextAnchor.MiddleRight,
+            weaponHudTextColor);
+
+        weaponAmmoText = RuntimeCanvasUIFactory.CreateText(
+            "WeaponAmmoText",
+            content,
+            string.Empty,
+            weaponHudFontSize + 4,
+            FontStyle.Bold,
+            TextAnchor.MiddleRight,
+            weaponHudTextColor);
+
+        weaponReloadText = RuntimeCanvasUIFactory.CreateText(
+            "WeaponReloadText",
+            content,
+            string.Empty,
+            Mathf.Max(10, weaponHudFontSize - 4),
+            FontStyle.Normal,
+            TextAnchor.MiddleRight,
+            weaponHudTextColor);
+
+        reloadProgressBackground = RuntimeCanvasUIFactory.CreateImage("ReloadProgressBackground", content, reloadBarBackgroundColor);
+        LayoutElement backgroundLayout = reloadProgressBackground.gameObject.AddComponent<LayoutElement>();
+        backgroundLayout.minHeight = reloadBarHeight;
+        backgroundLayout.preferredHeight = reloadBarHeight;
+
+        reloadProgressFill = RuntimeCanvasUIFactory.CreateImage("ReloadProgressFill", reloadProgressBackground.transform, reloadBarFillColor);
+        RectTransform fillRect = reloadProgressFill.rectTransform;
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = new Vector2(0f, 1f);
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
     }
 
     private void CreateCrosshairBar(string name, Transform parent, Vector2 anchoredPosition, Vector2 size)
@@ -320,6 +459,87 @@ public class LocalPlayerCameraController : NetworkBehaviour
         healthText.color = playerHealth.IsDead ? new Color(1f, 0.4f, 0.4f, hudTextColor.a) : hudTextColor;
     }
 
+    private void RefreshWeaponHud()
+    {
+        if (!showWeaponHud || !IsOwner || weaponNameText == null)
+        {
+            return;
+        }
+
+        if (playerWeapon == null)
+        {
+            playerWeapon = GetComponent<PlayerWeaponController>();
+        }
+
+        WeaponDefinition weapon = playerWeapon != null ? playerWeapon.CurrentWeapon : null;
+        if (weapon == null)
+        {
+            SetTextActive(weaponNameText, showWeaponName || showWeaponSlot);
+            SetTextActive(weaponAmmoText, showWeaponAmmo);
+            weaponNameText.text = $"{weaponNamePrefix} --";
+            weaponAmmoText.text = $"{ammoPrefix} --";
+            weaponReloadText.text = string.Empty;
+            SetReloadProgressVisible(false);
+            return;
+        }
+
+        bool displayNameLine = showWeaponName || showWeaponSlot;
+        SetTextActive(weaponNameText, displayNameLine);
+        if (displayNameLine)
+        {
+            string namePart = showWeaponName ? weapon.WeaponName : string.Empty;
+            string slotPart = showWeaponSlot ? $" [{playerWeapon.CurrentWeaponIndex + 1}/{playerWeapon.WeaponSlotCount}]" : string.Empty;
+            weaponNameText.text = $"{weaponNamePrefix} {namePart}{slotPart}".TrimEnd();
+        }
+
+        SetTextActive(weaponAmmoText, showWeaponAmmo);
+        if (showWeaponAmmo)
+        {
+            string ammoText = weapon.InfiniteAmmo ? "∞" : $"{playerWeapon.CurrentAmmoInMagazine} / {weapon.MagazineSize}";
+            weaponAmmoText.text = $"{ammoPrefix} {ammoText}";
+        }
+
+        double serverTime = NetworkManager != null ? NetworkManager.ServerTime.Time : Time.unscaledTimeAsDouble;
+        bool isReloading = playerWeapon.IsReloading;
+        if (isReloading)
+        {
+            float remaining = playerWeapon.GetReloadRemaining(serverTime);
+            weaponReloadText.text = $"{reloadingText} {remaining:F1}s";
+        }
+        else if (!weapon.InfiniteAmmo && playerWeapon.CurrentAmmoInMagazine <= 0)
+        {
+            weaponReloadText.text = emptyMagazineHintText;
+        }
+        else
+        {
+            weaponReloadText.text = string.Empty;
+        }
+
+        SetReloadProgressVisible(showReloadProgress && isReloading);
+        if (showReloadProgress && isReloading && reloadProgressFill != null)
+        {
+            float progress = playerWeapon.GetReloadProgress(serverTime);
+            RectTransform fillRect = reloadProgressFill.rectTransform;
+            fillRect.anchorMax = new Vector2(progress, 1f);
+        }
+    }
+
+    private static void SetTextActive(Text text, bool active)
+    {
+        if (text != null && text.gameObject.activeSelf != active)
+        {
+            text.gameObject.SetActive(active);
+        }
+    }
+
+    private void SetReloadProgressVisible(bool visible)
+    {
+        if (reloadProgressBackground != null && reloadProgressBackground.gameObject.activeSelf != visible)
+        {
+            reloadProgressBackground.gameObject.SetActive(visible);
+        }
+    }
+
     private Transform FindCameraTarget()
     {
         Transform[] children = GetComponentsInChildren<Transform>(true);
@@ -370,6 +590,11 @@ public class LocalPlayerCameraController : NetworkBehaviour
             healthText = null;
             damageText = null;
             killText = null;
+            weaponNameText = null;
+            weaponAmmoText = null;
+            weaponReloadText = null;
+            reloadProgressBackground = null;
+            reloadProgressFill = null;
         }
 
         if (spawnedVirtualCamera != null)
