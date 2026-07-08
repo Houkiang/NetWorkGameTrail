@@ -35,6 +35,11 @@ public class PlayerHealth : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
+    private readonly NetworkVariable<int> deathCount = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
     private Animator characterAnimator;
     private PlayerController playerController;
     private PlayerHitbox[] hitboxes;
@@ -55,6 +60,7 @@ public class PlayerHealth : NetworkBehaviour
     public int TotalDamageDealt => totalDamageDealt.Value;
 
     public int KillCount => killCount.Value;
+    public int DeathCount => deathCount.Value;
 
     public float RespawnDelay => respawnDelay;
 
@@ -70,6 +76,7 @@ public class PlayerHealth : NetworkBehaviour
         isDead.OnValueChanged += OnDeadStateChanged;
         totalDamageDealt.OnValueChanged += OnCombatStatsValueChanged;
         killCount.OnValueChanged += OnCombatStatsValueChanged;
+        deathCount.OnValueChanged += OnCombatStatsValueChanged;
 
         if (IsServer)
         {
@@ -87,7 +94,7 @@ public class PlayerHealth : NetworkBehaviour
         isDead.OnValueChanged -= OnDeadStateChanged;
         totalDamageDealt.OnValueChanged -= OnCombatStatsValueChanged;
         killCount.OnValueChanged -= OnCombatStatsValueChanged;
-
+        deathCount.OnValueChanged -= OnCombatStatsValueChanged;
         if (respawnCoroutine != null)
         {
             StopCoroutine(respawnCoroutine);
@@ -177,6 +184,16 @@ public class PlayerHealth : NetworkBehaviour
         killCount.Value += 1;
     }
 
+    public void RegisterDeathServer()
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        deathCount.Value += 1;
+    }
+
     public void SetDeadServer(bool dead)
     {
         if (!IsServer)
@@ -193,6 +210,7 @@ public class PlayerHealth : NetworkBehaviour
 
         if (dead)
         {
+            deathCount.Value += 1;
             currentHealth.Value = 0;
             playerController?.ResetMovementStateServer(transform.position, transform.eulerAngles.y);
 

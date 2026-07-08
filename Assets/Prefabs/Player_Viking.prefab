@@ -3406,8 +3406,9 @@ MonoBehaviour:
   logServerHits: 1
   muzzleOverlapRadius: 0.05
   showDebugTracers: 1
-  predictedTracerColor: {r: 0.22, g: 0.85, b: 1, a: 0.92}
-  confirmedTracerColor: {r: 1, g: 0.85, b: 0.24, a: 0.96}
+  showServerConfirmedTracers: 0
+  predictedTracerColor: {r: 1, g: 0.85, b: 0.24, a: 0.96}
+  confirmedTracerColor: {r: 0.22, g: 0.85, b: 1, a: 0.92}
   debugTracerWidth: 0.018
   debugTracerLifetime: 0.08
 --- !u!114 &-972637963776958293

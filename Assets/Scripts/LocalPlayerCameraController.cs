@@ -55,7 +55,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
     private Color hudPanelColor = new Color(0f, 0f, 0f, 0.28f);
 
     [SerializeField]
-    private Vector2 hudPanelSize = new Vector2(260f, 120f);
+    private Vector2 hudPanelSize = new Vector2(260f, 170f);
 
     [SerializeField]
     private Vector2 hudPanelOffset = new Vector2(24f, -24f);
@@ -145,6 +145,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
     private Text healthText;
     private Text damageText;
     private Text killText;
+    private Text deathText;
     private Text weaponNameText;
     private Text weaponAmmoText;
     private Text weaponReloadText;
@@ -325,6 +326,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
         healthText = RuntimeCanvasUIFactory.CreateText("HealthText", content, string.Empty, hudFontSize, FontStyle.Bold, TextAnchor.MiddleLeft, hudTextColor);
         damageText = RuntimeCanvasUIFactory.CreateText("DamageText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
         killText = RuntimeCanvasUIFactory.CreateText("KillText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
+        deathText = RuntimeCanvasUIFactory.CreateText("DeathText", content, string.Empty, hudFontSize - 2, FontStyle.Normal, TextAnchor.MiddleLeft, hudTextColor);
 
         BuildWeaponHudPanel();
 
@@ -448,6 +450,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
             healthText.text = "HP: --";
             damageText.text = "Damage: --";
             killText.text = "Kills: --";
+            deathText.text = "Deaths: --";
             return;
         }
 
@@ -456,6 +459,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
             : $"HP: {playerHealth.CurrentHealth} / {playerHealth.MaxHealth}";
         damageText.text = $"Damage: {playerHealth.TotalDamageDealt}";
         killText.text = $"Kills: {playerHealth.KillCount}";
+        deathText.text = $"Deaths: {playerHealth.DeathCount}";
         healthText.color = playerHealth.IsDead ? new Color(1f, 0.4f, 0.4f, hudTextColor.a) : hudTextColor;
     }
 
@@ -590,6 +594,7 @@ public class LocalPlayerCameraController : NetworkBehaviour
             healthText = null;
             damageText = null;
             killText = null;
+            deathText = null;
             weaponNameText = null;
             weaponAmmoText = null;
             weaponReloadText = null;

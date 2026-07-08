@@ -60,10 +60,14 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
     private bool showDebugTracers = true;
 
     [SerializeField]
-    private Color predictedTracerColor = new Color(0.22f, 0.85f, 1f, 0.92f);
+    [Tooltip("是否显示服务端确认并广播到客户端的子弹轨迹。关闭后仍保留本地预测轨迹、枪口火光、枪声和命中特效。")]
+    private bool showServerConfirmedTracers;
 
     [SerializeField]
-    private Color confirmedTracerColor = new Color(1f, 0.85f, 0.24f, 0.96f);
+    private Color predictedTracerColor = new Color(1f, 0.85f, 0.24f, 0.96f);
+
+    [SerializeField]
+    private Color confirmedTracerColor = new Color(0.22f, 0.85f, 1f, 0.92f);
 
     [SerializeField]
     [Min(0.001f)]
@@ -290,9 +294,15 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         if (!isLocalShooter)
         {
             TryPlayFireAnimation();
-            PlayShotPresentation(weapon, origin, traceEndPoint, playAudioAndMuzzle: true, tracerColorOverride: confirmedTracerColor);
+            PlayShotPresentation(
+                weapon,
+                origin,
+                traceEndPoint,
+                playAudioAndMuzzle: true,
+                tracerColorOverride: confirmedTracerColor,
+                playTracer: showServerConfirmedTracers);
         }
-        else if (showDebugTracers)
+        else if (showServerConfirmedTracers && showDebugTracers)
         {
             TryPlayDebugTracer(origin, traceEndPoint, confirmedTracerColor, debugTracerLifetime);
         }
@@ -527,7 +537,8 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
         Vector3 origin,
         Vector3 traceEndPoint,
         bool playAudioAndMuzzle,
-        Color tracerColorOverride)
+        Color tracerColorOverride,
+        bool playTracer = true)
     {
         if (weapon == null)
         {
@@ -540,7 +551,10 @@ public class PlayerCombatController : NetworkBehaviour, IDebugPanelProvider
             TryPlayFireAudio(weapon, origin);
         }
 
-        TryPlayTracer(weapon, origin, traceEndPoint, tracerColorOverride);
+        if (playTracer)
+        {
+            TryPlayTracer(weapon, origin, traceEndPoint, tracerColorOverride);
+        }
     }
 
     private void PlayImpactPresentation(WeaponDefinition weapon, Vector3 impactPoint, Vector3 impactNormal, bool hitPlayer)
